@@ -5,9 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    #Database
     DATABASE_URL: str
-    OPENROUTER_API_KEY: str
-    MODEL_NAME: str 
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
@@ -21,9 +20,13 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str]
 
     # App
-    APP_NAME: str
-    API_V1_STR: str 
+    APP_NAME: str 
     DEBUG: bool
+
+    #LLM
+    OPENROUTER_API_KEY: str
+    MODEL_NAME: str 
+    API_V1_STR: str
 
     # Redis
     REDIS_URL: str

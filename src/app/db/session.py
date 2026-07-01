@@ -10,10 +10,16 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=True)
 
-SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
 
 Base = declarative_base()
-
 #no se si agregarlo o no
 
 """async def get_db() -> AsyncGenerator[AsyncSession, None]:
