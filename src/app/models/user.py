@@ -21,7 +21,7 @@ class User(Base):
     full_name: so.Mapped[str] = so.mapped_column(sa.String(64))
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=lambda: datetime.now(timezone.utc)
+        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
     #one user can have multiple assistants, one to many relationship

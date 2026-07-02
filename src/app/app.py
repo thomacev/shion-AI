@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.exceptions_handlers import setup_exception_handlers
 from prometheus_fastapi_instrumentator import Instrumentator   # ← nuevo
-
+from app.api import auth, assistants
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -27,6 +27,11 @@ Instrumentator().instrument(app).expose(app)
 #EJEMPLO DE COMO INTRODUCIR UN ROUTER
 #app.include_router(auth.router, prefix="/auth")
 #app.include_router(boards.router, prefix="/projects/{project_id}/boards")
+
+
+
+app.include_router(auth.router)
+app.include_router(assistants.router)
 
 
 @app.get("/")

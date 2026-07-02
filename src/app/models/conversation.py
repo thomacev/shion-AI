@@ -31,7 +31,7 @@ class Conversation(Base):
     )
     title: so.Mapped[str | None] = so.mapped_column(sa.String(256), nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=lambda: datetime.now(timezone.utc)
+        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
     assistant: so.Mapped["Assistant"] = so.relationship("Assistant", back_populates="conversations") 
@@ -58,7 +58,7 @@ class Message(Base):
     tokens_used: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=lambda: datetime.now(timezone.utc), index=True
+        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
     )
 
     conversation: so.Mapped["Conversation"] = so.relationship(

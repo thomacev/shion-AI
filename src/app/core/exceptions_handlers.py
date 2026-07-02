@@ -8,6 +8,7 @@ from app.core.exceptions import (
     UserAlreadyExistsError,
     InsufficientPermissionsError,
     ValidationError,
+    ResourceNotFoundError
 )
 
 def setup_exception_handlers(app):
@@ -43,6 +44,13 @@ def setup_exception_handlers(app):
             content={"detail": exc.message}
         )
     
+    @app.exception_handler(ResourceNotFoundError)
+    async def resource_not_found_handler(request: Request, exc: ResourceNotFoundError):
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": exc.message or "Resource not found"}
+        )
+
     @app.exception_handler(DomainException)
     async def domain_exception_handler(request: Request, exc: DomainException):
         #logger.error(f"Unhandled domain exception: {exc.message}", exc_info=True)

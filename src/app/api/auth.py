@@ -7,7 +7,7 @@ from app.schemas.user_schema import UserRegisterSchema, UserResponseSchema
 from app.core.dependencies import get_db, get_current_user, oauth2_scheme
 from app.services import auth_service
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", status_code=status.HTTP_201_CREATED,response_model=UserResponseSchema)
 async def register(request: Request,user_data: UserRegisterSchema, db: AsyncSession = Depends(get_db)):
