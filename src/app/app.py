@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.exceptions_handlers import setup_exception_handlers
 from prometheus_fastapi_instrumentator import Instrumentator   # ← nuevo
-from app.api import auth, assistants
+from app.api import auth, assistants, conversations
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -32,6 +32,7 @@ Instrumentator().instrument(app).expose(app)
 
 app.include_router(auth.router)
 app.include_router(assistants.router)
+app.include_router(conversations.router)
 
 
 @app.get("/")
