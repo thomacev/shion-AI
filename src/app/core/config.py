@@ -1,6 +1,7 @@
 # app/core/config.py
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Optional
 
 
 
@@ -10,6 +11,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
+    DATABASE_TEST_URL: Optional[str] = None
     # JWT
     SECRET_KEY: str
     ALGORITHM: str

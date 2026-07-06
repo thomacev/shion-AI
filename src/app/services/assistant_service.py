@@ -30,7 +30,7 @@ async def list_assistants(
 ) -> list[Assistant]:
     stmt = select(Assistant).where(
         Assistant.user_id == user_id,
-        Assistant.is_active == True,
+        Assistant.is_active
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
@@ -79,7 +79,7 @@ async def _get_assistant_for_user(
     stmt = select(Assistant).where(
         Assistant.id == assistant_id,
         Assistant.user_id == user_id,
-        Assistant.is_active == True,
+        Assistant.is_active
     )
     result = await db.execute(stmt)
     assistant = result.scalar_one_or_none()

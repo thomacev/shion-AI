@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from app.core.config import settings
 from app.core.redis import get_redis_client
 import hashlib
-
+from app.core.logger import logger
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 def hash_password(password: str) -> str:
@@ -47,9 +47,9 @@ async def verify_token(token: str, expected_type: str = "access") -> dict | None
         
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         if payload.get("type") != expected_type:
-            #logger.warning(f"Token type mismatch: expected {expected_type}, got {payload.get('type')}")
+            logger.warning(f"Token type mismatch: expected {expected_type}, got {payload.get('type')}")
             return None
         return payload
     except JWTError as e:
-        #logger.warning(f"JWT decode error: {e}")
+        logger.warning(f"JWT decode error: {e}")
         return None
