@@ -31,6 +31,7 @@ dependencies = [
     "pytest>=9.1.1",
     "pytest-dotenv>=0.5.2",
     "pytest-cov>=7.1.0",
+    "ruff>=0.15.21",
 ]
 
 [project.optional-dependencies]
