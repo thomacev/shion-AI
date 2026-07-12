@@ -4,9 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
-
 class Settings(BaseSettings):
-    #Database
+    # Database
     DATABASE_URL: str
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
@@ -22,12 +21,12 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str]
 
     # App
-    APP_NAME: str 
+    APP_NAME: str
     DEBUG: bool
 
-    #LLM
+    # LLM
     OPENROUTER_API_KEY: str
-    MODEL_NAME: str 
+    MODEL_NAME: str
     API_V1_STR: str
 
     # Redis

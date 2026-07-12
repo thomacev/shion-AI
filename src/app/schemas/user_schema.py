@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 import re
 from uuid import UUID
 
+
 class UserRegisterSchema(BaseModel):
     email: EmailStr
     password: str

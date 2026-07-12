@@ -12,7 +12,9 @@ from app.schemas.conversation_schema import (
 )
 from app.services import conversation_service
 
-router = APIRouter(prefix="/assistants/{assistant_id}/conversations", tags=["conversations"])
+router = APIRouter(
+    prefix="/assistants/{assistant_id}/conversations", tags=["conversations"]
+)
 
 
 @router.post(

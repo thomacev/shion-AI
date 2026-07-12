@@ -28,10 +28,7 @@ async def list_assistants(
     user_id: UUID,
     db: AsyncSession,
 ) -> list[Assistant]:
-    stmt = select(Assistant).where(
-        Assistant.user_id == user_id,
-        Assistant.is_active
-    )
+    stmt = select(Assistant).where(Assistant.user_id == user_id, Assistant.is_active)
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
@@ -77,9 +74,7 @@ async def _get_assistant_for_user(
     db: AsyncSession,
 ) -> Assistant:
     stmt = select(Assistant).where(
-        Assistant.id == assistant_id,
-        Assistant.user_id == user_id,
-        Assistant.is_active
+        Assistant.id == assistant_id, Assistant.user_id == user_id, Assistant.is_active
     )
     result = await db.execute(stmt)
     assistant = result.scalar_one_or_none()

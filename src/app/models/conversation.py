@@ -34,11 +34,14 @@ class Conversation(Base):
         sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    assistant: so.Mapped["Assistant"] = so.relationship("Assistant", back_populates="conversations") 
+    assistant: so.Mapped["Assistant"] = so.relationship(
+        "Assistant", back_populates="conversations"
+    )
     messages: so.Mapped[list["Message"]] = so.relationship(
-        "Message", back_populates="conversation",
+        "Message",
+        back_populates="conversation",
         cascade="all, delete-orphan",
-        order_by="Message.created_at"
+        order_by="Message.created_at",
     )
 
 
@@ -53,12 +56,14 @@ class Message(Base):
     )
     role: so.Mapped[MessageRole] = so.mapped_column(SqlEnum(MessageRole))
     content: so.Mapped[str] = so.mapped_column(sa.Text)
-    
+
     # Guardás los tokens para poder calcular uso después
     tokens_used: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
-    
+
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
+        sa.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
     )
 
     conversation: so.Mapped["Conversation"] = so.relationship(

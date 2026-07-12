@@ -3,8 +3,9 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, field_validator
 from app.models.conversation import MessageRole
 
-#el usuario puede dar el titulo
-#o podria crearlo la IA basandose en las primeras palabras del mensaje, pero eso es mas complicado
+
+# el usuario puede dar el titulo
+# o podria crearlo la IA basandose en las primeras palabras del mensaje, pero eso es mas complicado
 class ConversationCreateSchema(BaseModel):
     title: str | None = None
 
@@ -31,7 +32,7 @@ class ConversationResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-#el rol no lo elige el usuario, sino que lo cambia el frontend en todo caso
+# el rol no lo elige el usuario, sino que lo cambia el frontend en todo caso
 class MessageCreateSchema(BaseModel):
     content: str
 
@@ -55,6 +56,7 @@ class MessageResponseSchema(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class ChatResponseSchema(BaseModel):
     message: MessageResponseSchema

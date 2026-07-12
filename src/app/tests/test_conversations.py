@@ -1,6 +1,7 @@
 import uuid
 import pytest_asyncio
 
+
 @pytest_asyncio.fixture
 async def test_conversation(client, auth_headers, test_assistant):
     response = await client.post(

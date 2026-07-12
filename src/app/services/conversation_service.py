@@ -71,9 +71,11 @@ async def list_conversations(
 ) -> list[Conversation]:
     await _get_assistant_for_user(assistant_id, user_id, db)
 
-    stmt = select(Conversation).where(
-        Conversation.assistant_id == assistant_id
-    ).order_by(Conversation.created_at.desc())
+    stmt = (
+        select(Conversation)
+        .where(Conversation.assistant_id == assistant_id)
+        .order_by(Conversation.created_at.desc())
+    )
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
@@ -87,9 +89,11 @@ async def get_messages(
     await _get_assistant_for_user(assistant_id, user_id, db)
     await _get_conversation_for_assistant(conversation_id, assistant_id, db)
 
-    stmt = select(Message).where(
-        Message.conversation_id == conversation_id
-    ).order_by(Message.created_at)
+    stmt = (
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at)
+    )
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
@@ -100,9 +104,7 @@ async def _get_assistant_for_user(
     db: AsyncSession,
 ) -> Assistant:
     stmt = select(Assistant).where(
-        Assistant.id == assistant_id,
-        Assistant.user_id == user_id,
-        Assistant.is_active
+        Assistant.id == assistant_id, Assistant.user_id == user_id, Assistant.is_active
     )
     result = await db.execute(stmt)
     assistant = result.scalar_one_or_none()

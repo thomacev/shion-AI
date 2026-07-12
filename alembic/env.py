@@ -5,9 +5,9 @@ from sqlalchemy import pool
 from alembic import context
 from app.core.config import settings
 from app.db.session import Base
-from app.models.user import User # noqa: F401
-from app.models.assistant import Assistant # noqa: F401
-from app.models.conversation import Conversation, Message # noqa: F401
+from app.models.user import User  # noqa: F401
+from app.models.assistant import Assistant  # noqa: F401
+from app.models.conversation import Conversation, Message  # noqa: F401
 
 
 # this is the Alembic Config object, which provides
@@ -43,6 +43,7 @@ def run_migrations_offline() -> None:
 
     with context.begin_transaction():
         context.run_migrations()
+
 
 def do_run_migrations(connection):
     """Función auxiliar que ejecuta las migraciones sincrónicamente dentro del contexto asíncrono."""

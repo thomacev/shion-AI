@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.assistant import Assistant
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -24,5 +25,7 @@ class User(Base):
         sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    #one user can have multiple assistants, one to many relationship
-    assistants: so.Mapped[list["Assistant"]] = so.relationship("Assistant", back_populates="user", cascade="all, delete-orphan") 
+    # one user can have multiple assistants, one to many relationship
+    assistants: so.Mapped[list["Assistant"]] = so.relationship(
+        "Assistant", back_populates="user", cascade="all, delete-orphan"
+    )

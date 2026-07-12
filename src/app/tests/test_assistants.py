@@ -32,7 +32,9 @@ class TestListAssistants:
         self, client, auth_headers, other_user_headers
     ):
         await client.post("/assistants", json={"name": "Mine"}, headers=auth_headers)
-        await client.post("/assistants", json={"name": "Theirs"}, headers=other_user_headers)
+        await client.post(
+            "/assistants", json={"name": "Theirs"}, headers=other_user_headers
+        )
 
         response = await client.get("/assistants", headers=auth_headers)
         names = [a["name"] for a in response.json()]
