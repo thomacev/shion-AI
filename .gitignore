@@ -3,10 +3,12 @@ venv/
 .env/
 .venv/
 env/
+
 ENV/
 # Archivos de entorno y configuración local
 *.env
 .env
+*.env.ci
 secrets.json
 *.local
 *.pyc
