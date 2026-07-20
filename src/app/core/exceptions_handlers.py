@@ -9,6 +9,7 @@ from app.core.exceptions import (
     InsufficientPermissionsError,
     ValidationError,
     ResourceNotFoundError,
+    LLMServiceError
 )
 
 
@@ -76,4 +77,11 @@ def setup_exception_handlers(app):
         return JSONResponse(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             content={"detail": "Too many requests. Please try again later."},
+        )
+    
+    @app.exception_handler(LLMServiceError)
+    async def llm_service_error_handler(request: Request, exc: LLMServiceError):
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"detail": exc.message or "Error interacting with the LLM service"},
         )

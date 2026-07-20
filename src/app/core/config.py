@@ -28,7 +28,10 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str
     MODEL_NAME: str
     API_V1_STR: str
-
+    OPENROUTER_BASE_URL: str 
+    LLM_MAX_TOKENS: int
+    LLM_TEMPERATURE: float
+    
     # Redis
     REDIS_URL: str
     RATE_LIMIT_ENABLED: bool

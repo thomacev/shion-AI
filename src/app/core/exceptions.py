@@ -49,3 +49,8 @@ class ValidationError(DomainException):
     """Raised when business validation fails."""
 
     pass
+
+class LLMServiceError(DomainException):
+    """Raised when there is an error interacting with the LLM service."""
+
+    pass
