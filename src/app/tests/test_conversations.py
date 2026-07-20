@@ -1,5 +1,7 @@
 import uuid
 import pytest_asyncio
+from unittest.mock import AsyncMock, patch
+from app.core.exceptions import LLMServiceError
 
 
 @pytest_asyncio.fixture
@@ -34,38 +36,47 @@ class TestCreateConversation:
 
 
 class TestSendMessage:
-    async def test_send_message_returns_mock_response(
+    async def test_send_message_calls_llm_and_saves_response(
         self, client, auth_headers, test_assistant, test_conversation
     ):
-        response = await client.post(
-            f"/assistants/{test_assistant['id']}/conversations/{test_conversation['id']}/messages",
-            json={"content": "Hello there"},
-            headers=auth_headers,
-        )
+        fake_llm_response = {
+            "content": "This is a mock response from the LLM.",
+            "tokens_input": 23,
+            "tokens_output": 18,
+            "model": "mock-model",
+        }
+        with patch("app.services.conversation_service.chat", new=AsyncMock(return_value=fake_llm_response)):
+            response = await client.post(
+                f"/assistants/{test_assistant['id']}/conversations/{test_conversation['id']}/messages",
+                json={"content": "Hello there"},
+                headers=auth_headers,
+            )
         assert response.status_code == 200
         data = response.json()
-        assert "Hello there" in data["message"]["content"]
+        assert data["message"]["content"] == "This is a mock response from the LLM."
         assert data["message"]["role"] == "assistant"
+        assert data["tokens_used"] == 18
 
-    async def test_history_persists_both_messages_in_order(
+    async def test_llm_failure_rolls_back_and_returns_502(
         self, client, auth_headers, test_assistant, test_conversation
     ):
-        await client.post(
+        with patch(
+            "app.services.conversation_service.chat",
+            new=AsyncMock(side_effect=LLMServiceError("timeout")),
+        ):
+            response = await client.post(
+                f"/assistants/{test_assistant['id']}/conversations/{test_conversation['id']}/messages",
+                json={"content": "This message will fail"},
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 502
+
+        history_response = await client.get(
             f"/assistants/{test_assistant['id']}/conversations/{test_conversation['id']}/messages",
-            json={"content": "Hola"},
             headers=auth_headers,
         )
-
-        response = await client.get(
-            f"/assistants/{test_assistant['id']}/conversations/{test_conversation['id']}/messages",
-            headers=auth_headers,
-        )
-        messages = response.json()
-
-        assert len(messages) == 2
-        assert messages[0]["role"] == "user"
-        assert messages[0]["content"] == "Hola"
-        assert messages[1]["role"] == "assistant"
+        assert history_response.json() == []
 
 
 class TestConversationOwnership:

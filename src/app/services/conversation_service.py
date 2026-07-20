@@ -6,6 +6,8 @@ from app.models.conversation import Conversation, Message, MessageRole
 from app.models.assistant import Assistant
 from app.schemas.conversation_schema import ConversationCreateSchema
 from app.core.exceptions import ResourceNotFoundError
+from app.services.llm_service import chat
+
 
 
 async def create_conversation(
@@ -44,14 +46,35 @@ async def send_message(
     db.add(user_message)
     await db.flush()
 
-    # MOCK — despues se reemplaza con la llamada a la API de OpenRouter
-    mock_response = f"[Mock] I got your message: '{content}'. I am {assistant.name}."
+    #this replace the mock, but my tests are gonna fail so far
+    #there are other ways to do this, but for now I will keep it simple and just get the last 20 messages from the conversation
+    stmt = (
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.id != user_message.id,
+            )
+        .order_by(Message.created_at.desc())
+        .limit(20)
+    )
 
+    result = await db.execute(stmt)
+    recent_messages = list(result.scalars().all())
+
+    history = [
+        {"role": message.role.value, "content": message.content}
+        for message in reversed(recent_messages)
+    ]
+    history.append({"role": "user", "content": content})
+    llm_response = await chat(
+        system_prompt=assistant.system_prompt,
+        messages=history,)
+    
     assistant_message = Message(
         conversation_id=conversation_id,
         role=MessageRole.ASSISTANT,
-        content=mock_response,
-        tokens_used=None,
+        content=llm_response["content"],
+        tokens_used=llm_response["tokens_output"],
     )
     db.add(assistant_message)
     await db.commit()
@@ -59,8 +82,8 @@ async def send_message(
 
     return {
         "message": assistant_message,
-        "tokens_used": None,
-        "model": None,
+        "tokens_used": llm_response["tokens_output"],
+        "model": llm_response["model"],
     }
 
 
