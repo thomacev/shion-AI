@@ -54,8 +54,12 @@ async def db_session():
 @pytest_asyncio.fixture
 async def client(db_session):
     async def override_get_db():
-        yield db_session
-
+        try:
+            yield db_session
+        except Exception:
+            await db_session.rollback()
+            raise
+        
     app.dependency_overrides[get_db] = override_get_db
 
     transport = ASGITransport(app=app)
