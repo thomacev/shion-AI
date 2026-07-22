@@ -6,13 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.user_schema import UserRegisterSchema, UserResponseSchema
 from app.core.dependencies import get_db, get_current_user, oauth2_scheme
 from app.services import auth_service
+from app.core.rate_limit import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post(
-    "/register", status_code=status.HTTP_201_CREATED, response_model=UserResponseSchema
-)
+@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=UserResponseSchema)
+@limiter.limit("5/hour")
 async def register(
     request: Request, user_data: UserRegisterSchema, db: AsyncSession = Depends(get_db)
 ):
@@ -20,6 +20,7 @@ async def register(
 
 
 @router.post("/login")
+@limiter.limit("5/minute")
 async def login(
     request: Request,
     credentials: OAuth2PasswordRequestForm = Depends(),
@@ -37,7 +38,7 @@ async def refresh(refresh_token: str = Body(..., embed=True)):
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
-    current_user=Depends(get_current_user), token: str = Depends(oauth2_scheme)
+    request: Request, current_user=Depends(get_current_user), token: str = Depends(oauth2_scheme)
 ):
     """
     Logout endpoint that blacklists the current token.

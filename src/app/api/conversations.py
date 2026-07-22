@@ -1,6 +1,7 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Request
 
 from app.core.dependencies import get_db, get_current_user
 from app.schemas.conversation_schema import (
@@ -11,6 +12,7 @@ from app.schemas.conversation_schema import (
     ChatResponseSchema,
 )
 from app.services import conversation_service
+from app.core.rate_limit import limiter
 
 router = APIRouter(
     prefix="/assistants/{assistant_id}/conversations", tags=["conversations"]
@@ -56,7 +58,9 @@ async def list_conversations(
     "/{conversation_id}/messages",
     response_model=ChatResponseSchema,
 )
+@limiter.limit("10/minute")
 async def send_message(
+    request: Request,
     assistant_id: UUID,
     conversation_id: UUID,
     data: MessageCreateSchema,

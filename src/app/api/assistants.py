@@ -1,6 +1,7 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Request
 
 from app.core.dependencies import get_db, get_current_user
 from app.schemas.assistant_schema import (
@@ -9,6 +10,7 @@ from app.schemas.assistant_schema import (
     AssistantResponseSchema,
 )
 from app.services import assistant_service
+from app.core.rate_limit import limiter
 
 router = APIRouter(prefix="/assistants", tags=["assistants"])
 
@@ -18,7 +20,9 @@ router = APIRouter(prefix="/assistants", tags=["assistants"])
     status_code=status.HTTP_201_CREATED,
     response_model=AssistantResponseSchema,
 )
+@limiter.limit("20/hour")
 async def create_assistant(
+    request: Request,
     data: AssistantCreateSchema,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

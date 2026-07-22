@@ -5,7 +5,7 @@ from app.core.exceptions_handlers import setup_exception_handlers
 from prometheus_fastapi_instrumentator import Instrumentator  # ← nuevo
 from app.api import auth, assistants, conversations
 from app.core.middleware import RequestContextMiddleware
-
+from app.core.rate_limit import limiter
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -14,7 +14,7 @@ app = FastAPI(
     debug=settings.DEBUG,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
-
+app.state.limiter = limiter
 setup_exception_handlers(app)
 
 app.add_middleware(
