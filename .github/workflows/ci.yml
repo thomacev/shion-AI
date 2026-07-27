@@ -12,7 +12,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15-alpine
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_USER: shion_test
           POSTGRES_PASSWORD: shion_test659
