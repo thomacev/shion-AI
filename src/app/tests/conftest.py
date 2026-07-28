@@ -19,13 +19,19 @@ test_engine = create_async_engine(
 )
 
 
+from sqlalchemy import text
+
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_db():
     async with test_engine.begin() as conn:
+        await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
     await test_engine.dispose()
 
 
