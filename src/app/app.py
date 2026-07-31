@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.exceptions_handlers import setup_exception_handlers
 from prometheus_fastapi_instrumentator import Instrumentator  # ← nuevo
-from app.api import auth, assistants, conversations
+from app.api import auth, assistants, conversations,documents  # Importar el enrutador de documentos
 from app.core.middleware import RequestContextMiddleware
 from app.core.rate_limit import limiter
 
@@ -30,6 +30,7 @@ app.add_middleware(RequestContextMiddleware)
 app.include_router(auth.router)
 app.include_router(assistants.router)
 app.include_router(conversations.router)
+app.include_router(documents.router)  # Agregar el enrutador de documentos
 
 
 @app.get("/")

@@ -8,6 +8,7 @@ from app.db.session import Base
 from app.models.user import User  # noqa: F401
 from app.models.assistant import Assistant  # noqa: F401
 from app.models.conversation import Conversation, Message  # noqa: F401
+from app.models.document import Document, DocumentChunk  # noqa: F401
 
 
 # this is the Alembic Config object, which provides
