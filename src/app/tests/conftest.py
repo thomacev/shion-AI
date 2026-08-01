@@ -3,12 +3,12 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.pool import NullPool
-
+from sqlalchemy import text
+import asyncpg
 from app.app import app
 from app.core.config import settings
 from app.core.dependencies import get_db
 from app.db.session import Base
-
 from app.core.redis import close_redis
 
 # Engine dedicado a los tests, apuntando a la DB de test
@@ -18,29 +18,31 @@ test_engine = create_async_engine(
     poolclass=NullPool,
 )
 
+async def _ensure_vector_extension():
 
-from sqlalchemy import text
+    dsn = settings.DATABASE_TEST_URL.replace("postgresql+asyncpg://", "postgresql://")
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    finally:
+        await conn.close()
+
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_db():
+    await _ensure_vector_extension()  
+
     async with test_engine.begin() as conn:
-        await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
-        await conn.execute(text("CREATE SCHEMA public"))
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with test_engine.begin() as conn:
-        await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
-        await conn.execute(text("CREATE SCHEMA public"))
+        await conn.run_sync(Base.metadata.drop_all)
     await test_engine.dispose()
 
 
 @pytest_asyncio.fixture
 async def db_session():
-    """Una conexión y transacción externa por test. Los commit() que
-    haga el código de la app usan SAVEPOINT internamente (gracias a
-    join_transaction_mode) en vez de cerrar esta transacción externa.
-    Al final, el rollback() descarta todo de una."""
+
     connection = await test_engine.connect()
     trans = await connection.begin()
 
@@ -77,8 +79,7 @@ async def client(db_session):
 
 @pytest_asyncio.fixture
 async def test_user(client):
-    """Registra un usuario y devuelve sus datos + password en texto plano
-    (lo necesitás para el test de login)."""
+
     payload = {
         "email": f"user_{uuid.uuid4().hex[:8]}@test.com",
         "password": "TestPass1234",
@@ -91,7 +92,6 @@ async def test_user(client):
 
 @pytest_asyncio.fixture
 async def auth_headers(client, test_user):
-    """Loguea al test_user y devuelve el header listo para usar."""
     response = await client.post(
         "/auth/login",
         data={
@@ -106,8 +106,7 @@ async def auth_headers(client, test_user):
 
 @pytest_asyncio.fixture
 async def other_user_headers(client):
-    """Un segundo usuario completamente distinto, para los tests
-    de ownership: 'usuario A no puede tocar recursos de usuario B'."""
+
     payload = {
         "email": f"other_{uuid.uuid4().hex[:8]}@test.com",
         "password": "OtherPass1234",
@@ -127,7 +126,6 @@ async def other_user_headers(client):
 
 @pytest_asyncio.fixture
 async def test_assistant(client, auth_headers):
-    """Un asistente creado por el usuario principal (test_user)."""
     response = await client.post(
         "/assistants",
         json={"name": "Test Assistant", "system_prompt": "You are helpful."},
@@ -141,3 +139,19 @@ async def test_assistant(client, auth_headers):
 async def cleanup_redis():
     yield
     await close_redis()
+
+    
+from unittest.mock import AsyncMock, patch
+
+@pytest_asyncio.fixture
+async def test_document(client, auth_headers, test_assistant):
+
+    fake_embeddings = [[0.1] * 1536]
+    with patch("app.services.document_service.embed", new=AsyncMock(return_value=fake_embeddings)):
+        response = await client.post(
+            f"/assistants/{test_assistant['id']}/documents",
+            files={"file": ("notes.txt", b"El horario de atencion es de 9 a 18.", "text/plain")},
+            headers=auth_headers,
+        )
+    assert response.status_code == 201
+    return response.json()

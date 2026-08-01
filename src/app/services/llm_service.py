@@ -82,3 +82,20 @@ async def chat(
     )
 
     return result
+#chequear este
+async def embed(texts: list[str]) -> list[list[float]]:
+
+    client = get_llm_client()
+    try:
+        response = await client.embeddings.create(
+            model=settings.EMBEDDING_MODEL,
+            input=texts,
+        )
+    except (APITimeoutError, APIConnectionError) as e:
+        logger.error("embedding_connection_error")
+        raise LLMServiceError("The embedding service is unavailable") from e
+    except APIStatusError as e:
+        logger.error("embedding_status_error", status_code=e.status_code)
+        raise LLMServiceError(f"OpenRouter returned an error: {e.status_code}") from e
+
+    return [item.embedding for item in response.data]

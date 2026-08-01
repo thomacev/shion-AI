@@ -6,9 +6,9 @@ from app.models.conversation import Conversation, Message, MessageRole
 from app.models.assistant import Assistant
 from app.schemas.conversation_schema import ConversationCreateSchema
 from app.core.exceptions import ResourceNotFoundError
-from app.services.llm_service import chat
 
-
+from app.services.llm_service import chat, embed
+from app.services.document_service import search_relevant_chunks
 
 async def create_conversation(
     assistant_id: UUID,
@@ -66,8 +66,14 @@ async def send_message(
         for message in reversed(recent_messages)
     ]
     history.append({"role": "user", "content": content})
+    [query_embedding] = await embed([content])
+    relevant_chunks = await search_relevant_chunks(assistant_id, query_embedding, db)
+    system_prompt = assistant.system_prompt
+    if relevant_chunks:
+        context_text = "\n\n".join(chunk.content for chunk in relevant_chunks)
+        system_prompt += f"\n\nRelevant context for the assistant:\n{context_text}"
     llm_response = await chat(
-        system_prompt=assistant.system_prompt,
+        system_prompt=system_prompt,
         messages=history,)
     
     assistant_message = Message(

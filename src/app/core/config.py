@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     OPENROUTER_BASE_URL: str 
     LLM_MAX_TOKENS: int
     LLM_TEMPERATURE: float
+    EMBEDDING_MODEL: str 
     
     # Redis
     REDIS_URL: str

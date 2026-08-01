@@ -24,3 +24,21 @@ async def upload_document(
         content=content,
         db=db,
     )
+
+@router.get("", response_model=list[DocumentResponseSchema])
+async def list_documents(
+    assistant_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await document_service.list_documents(assistant_id, current_user["id"], db)
+
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    assistant_id: UUID,
+    document_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await document_service.delete_document(document_id, assistant_id, current_user["id"], db)

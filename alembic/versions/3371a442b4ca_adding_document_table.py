@@ -30,7 +30,7 @@ def upgrade():
         sa.Column("filename", sa.String(256), nullable=False),
         sa.Column("status", sa.Enum("PENDING", "PROCESSING", "READY", "FAILED", name="documentstatus"), nullable=False),
         sa.Column("error_message", sa.Text, nullable=True),
-        sa.Column("created_at", sa.DateTime, nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_documents_assistant_id", "documents", ["assistant_id"])
 
@@ -41,7 +41,7 @@ def upgrade():
         sa.Column("content", sa.Text, nullable=False),
         sa.Column("chunk_index", sa.Integer, nullable=False),
         sa.Column("embedding", Vector(1536), nullable=False),
-        sa.Column("created_at", sa.DateTime, nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_document_chunks_document_id", "document_chunks", ["document_id"])
 

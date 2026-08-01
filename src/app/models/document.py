@@ -38,7 +38,7 @@ class Document(Base):
     )
     error_message: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=lambda: datetime.now(timezone.utc)
+        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
     chunks: so.Mapped[list["DocumentChunk"]] = so.relationship(
@@ -59,7 +59,7 @@ class DocumentChunk(Base):
     chunk_index: so.Mapped[int] = so.mapped_column(sa.Integer)
     embedding: so.Mapped[list[float]] = so.mapped_column(Vector(EMBEDDING_DIM))
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=lambda: datetime.now(timezone.utc)
+        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
     document: so.Mapped["Document"] = so.relationship("Document", back_populates="chunks")
