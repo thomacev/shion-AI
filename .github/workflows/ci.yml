@@ -63,7 +63,7 @@ jobs:
       OPENROUTER_BASE_URL: https://openrouter.ai/api/v3
       LLM_MAX_TOKENS: 2048   
       LLM_TEMPERATURE: 0.7  
-      EMBBEDDING_MODEL: text-embedding-3-small
+      EMBEDDING_MODEL: text-embedding-3-small
       # Redis
       REDIS_URL: redis://localhost:6379
       RATE_LIMIT_ENABLED: "false"
