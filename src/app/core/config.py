@@ -25,13 +25,13 @@ class Settings(BaseSettings):
     DEBUG: bool
 
     # LLM
-    OPENROUTER_API_KEY: str
+    GEMINI_API_KEY: str
     MODEL_NAME: str
     API_V1_STR: str
-    OPENROUTER_BASE_URL: str 
     LLM_MAX_TOKENS: int
     LLM_TEMPERATURE: float
     EMBEDDING_MODEL: str 
+    EMBEDDING_DIM: int
     
     # Redis
     REDIS_URL: str

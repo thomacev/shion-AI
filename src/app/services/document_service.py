@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.document import Document, DocumentChunk, DocumentStatus, EMBEDDING_DIM
 from app.services.assistant_service import _get_assistant_for_user
-from app.services.llm_service import embed
+from app.services.embedding_service import embed
 from app.core.exceptions import ResourceNotFoundError
 
 

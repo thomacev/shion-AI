@@ -57,13 +57,13 @@ jobs:
       DEBUG: "true"
 
       # LLM
-      OPENROUTER_API_KEY: sk-or-fake-key-for-ci
-      MODEL_NAME: google/gemini-2.5-flash-lite-preview-06-17
+      GEMINI_API_KEY: sk-or-fake-key-for-ci
+      MODEL_NAME: gemini-3-flash-preview
       API_V1_STR: /api/v1
-      OPENROUTER_BASE_URL: https://openrouter.ai/api/v3
       LLM_MAX_TOKENS: 2048   
       LLM_TEMPERATURE: 0.7  
-      EMBEDDING_MODEL: text-embedding-3-small
+      EMBEDDING_MODEL: gemini-embedding-001
+      EMBEDDING_DIM: 1536
       # Redis
       REDIS_URL: redis://localhost:6379
       RATE_LIMIT_ENABLED: "false"

@@ -7,7 +7,8 @@ from app.models.assistant import Assistant
 from app.schemas.conversation_schema import ConversationCreateSchema
 from app.core.exceptions import ResourceNotFoundError
 
-from app.services.llm_service import chat, embed
+from app.services.llm_service import chat
+from app.services.embedding_service import embed
 from app.services.document_service import search_relevant_chunks
 
 async def create_conversation(
