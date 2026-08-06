@@ -6,10 +6,15 @@ from app.core.dependencies import get_db, get_current_user
 from app.schemas.document_schema import DocumentResponseSchema
 from app.services import document_service
 
+import base64
+from app.tasks.document_tasks import process_document_task
+
 router = APIRouter(prefix="/assistants/{assistant_id}/documents", tags=["documents"])
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, response_model=DocumentResponseSchema)
+
+#nuevo
+@router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=DocumentResponseSchema)
 async def upload_document(
     assistant_id: UUID,
     file: UploadFile = File(...),
@@ -17,13 +22,17 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
 ):
     content = await file.read()
-    return await document_service.process_document(
+    document = await document_service.create_pending_document(
         assistant_id=assistant_id,
         user_id=current_user["id"],
         filename=file.filename,
-        content=content,
         db=db,
     )
+    process_document_task.delay(
+        str(document.id), file.filename, base64.b64encode(content).decode("ascii")
+    )
+    return document
+
 
 @router.get("", response_model=list[DocumentResponseSchema])
 async def list_documents(
@@ -42,3 +51,13 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
 ):
     await document_service.delete_document(document_id, assistant_id, current_user["id"], db)
+
+
+@router.get("/{document_id}", response_model=DocumentResponseSchema)
+async def get_document(
+    assistant_id: UUID,
+    document_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await document_service.get_document(document_id, assistant_id, current_user["id"], db)

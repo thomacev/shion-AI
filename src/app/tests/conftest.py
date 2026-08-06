@@ -11,6 +11,10 @@ from app.core.dependencies import get_db
 from app.db.session import Base
 from app.core.redis import close_redis
 
+from uuid import UUID
+from unittest.mock import AsyncMock, patch
+from app.services.document_service import create_pending_document, run_document_processing
+
 # Engine dedicado a los tests, apuntando a la DB de test
 test_engine = create_async_engine(
     settings.DATABASE_TEST_URL,
@@ -140,18 +144,27 @@ async def cleanup_redis():
     yield
     await close_redis()
 
-    
-from unittest.mock import AsyncMock, patch
 
 @pytest_asyncio.fixture
-async def test_document(client, auth_headers, test_assistant):
+async def test_document(client, auth_headers, test_assistant, db_session):
+    document = await create_pending_document(
+        assistant_id=UUID(test_assistant["id"]),
+        user_id=UUID(test_assistant["user_id"]),
+        filename="notes.txt",
+        db=db_session,
+    )
 
-    fake_embeddings = [[0.1] * 1536]
-    with patch("app.services.document_service.embed", new=AsyncMock(return_value=fake_embeddings)):
-        response = await client.post(
-            f"/assistants/{test_assistant['id']}/documents",
-            files={"file": ("notes.txt", b"El horario de atencion es de 9 a 18.", "text/plain")},
-            headers=auth_headers,
+    with patch("app.services.document_service.embed", new=AsyncMock(return_value=[[0.1] * 1536])):
+        await run_document_processing(
+            document.id, "notes.txt", b"El horario de atencion es de 9 a 18.", db_session
         )
-    assert response.status_code == 201
-    return response.json()
+
+    await db_session.refresh(document)
+    return {
+        "id": str(document.id),
+        "assistant_id": str(document.assistant_id),
+        "filename": document.filename,
+        "status": document.status.value,
+        "error_message": document.error_message,
+        "created_at": document.created_at.isoformat(),
+    }

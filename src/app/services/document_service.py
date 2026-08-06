@@ -29,26 +29,38 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[st
     return [c.strip() for c in chunks if c.strip()]
 
 
-async def process_document(
+#ver como es el tema de los endpoints con estas 2 nuevas funciones
+async def create_pending_document(
     assistant_id: UUID,
     user_id: UUID,
     filename: str,
-    content: bytes,
     db: AsyncSession,
 ) -> Document:
     await _get_assistant_for_user(assistant_id, user_id, db)
 
-    document = Document(assistant_id=assistant_id, filename=filename, status=DocumentStatus.PROCESSING)
+    document = Document(assistant_id=assistant_id, filename=filename, status=DocumentStatus.PENDING)
     db.add(document)
-    await db.flush()
+    await db.commit()
+    await db.refresh(document)
+    return document
+
+
+async def run_document_processing(
+    document_id: UUID,
+    filename: str,
+    content: bytes,
+    db: AsyncSession,
+) -> None:
+
+    document = await db.get(Document, document_id)
+    document.status = DocumentStatus.PROCESSING
+    await db.commit()
 
     try:
         text = extract_text(filename, content)
         chunks = chunk_text(text)
         embeddings = await embed(chunks)
 
-        # DÍA 2 — mock: vector de ceros, solo para probar que el guardado
-        # de chunks funciona antes de tocar la API real
         for i, (chunk_content, vector) in enumerate(zip(chunks, embeddings)):
             db.add(DocumentChunk(
                 document_id=document.id,
@@ -63,10 +75,6 @@ async def process_document(
         document.status = DocumentStatus.FAILED
         document.error_message = str(e)
         await db.commit()
-        
-
-    await db.refresh(document)
-    return document
 
 async def search_relevant_chunks(
     assistant_id: UUID,
@@ -126,3 +134,13 @@ async def _get_document_for_assistant(
     if not document:
         raise ResourceNotFoundError("Document not found")
     return document
+
+
+async def get_document(
+    document_id: UUID,
+    assistant_id: UUID,
+    user_id: UUID,
+    db: AsyncSession,
+) -> Document:
+    await _get_assistant_for_user(assistant_id, user_id, db)
+    return await _get_document_for_assistant(document_id, assistant_id, db)

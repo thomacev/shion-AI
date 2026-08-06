@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     CACHE_TTL_DEFAULT: int
     REDIS_PASSWORD: str
 
+    #Celery
+    CELERY_BROKER_URL: str
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

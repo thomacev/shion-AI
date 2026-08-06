@@ -3,30 +3,25 @@ import uuid
 from app.core.exceptions import LLMServiceError
 
 class TestUploadDocument:
-    async def test_upload_document_processes_and_creates_chunks(
-        self, client, auth_headers, test_assistant
-    ):
-        fake_embeddings = [[0.1] * 1536, [0.2] * 1536]
-        with patch("app.services.document_service.embed", new=AsyncMock(return_value=fake_embeddings)):
+    async def test_upload_dispatches_processing_task(self, client, auth_headers, test_assistant):
+        with patch("app.api.documents.process_document_task.delay") as mock_delay:
             response = await client.post(
                 f"/assistants/{test_assistant['id']}/documents",
-                files={"file": ("notes.txt", b"contenido de prueba " * 100, "text/plain")},
+                files={"file": ("notes.txt", b"contenido de prueba", "text/plain")},
                 headers=auth_headers,
             )
-        assert response.status_code == 201
-        assert response.json()["status"] == "ready"
+        assert response.status_code == 202
+        assert response.json()["status"] == "pending"
+        mock_delay.assert_called_once()
 
-    async def test_upload_failure_marks_document_as_failed(
-        self, client, auth_headers, test_assistant
-    ):
-        with patch("app.services.document_service.embed", new=AsyncMock(side_effect=LLMServiceError("failed"))):
+    async def test_cannot_upload_to_other_users_assistant(self, client, other_user_headers, test_assistant):
+        with patch("app.api.documents.process_document_task.delay"):
             response = await client.post(
                 f"/assistants/{test_assistant['id']}/documents",
                 files={"file": ("notes.txt", b"contenido", "text/plain")},
-                headers=auth_headers,
+                headers=other_user_headers,
             )
-        assert response.status_code == 201
-        assert response.json()["status"] == "failed"
+        assert response.status_code == 404
 
     async def test_cannot_upload_to_other_users_assistant(
         self, client, other_user_headers, test_assistant
@@ -85,5 +80,26 @@ class TestDeleteDocument:
         response = await client.delete(
             f"/assistants/{test_assistant['id']}/documents/{fake_id}",
             headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+
+class TestGetDocument:
+    async def test_get_document_returns_current_status(
+        self, client, auth_headers, test_assistant, test_document
+    ):
+        response = await client.get(
+            f"/assistants/{test_assistant['id']}/documents/{test_document['id']}",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["id"] == test_document["id"]
+
+    async def test_cannot_get_other_users_document(
+        self, client, other_user_headers, test_assistant, test_document
+    ):
+        response = await client.get(
+            f"/assistants/{test_assistant['id']}/documents/{test_document['id']}",
+            headers=other_user_headers,
         )
         assert response.status_code == 404
