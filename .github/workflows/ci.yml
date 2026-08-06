@@ -70,6 +70,10 @@ jobs:
       CACHE_TTL_DEFAULT: 300
       REDIS_PASSWORD: ""
 
+      #celery
+      CELERY_BROKER_URL: redis://localhost:6379/1
+
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
