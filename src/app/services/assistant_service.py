@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.assistant import Assistant
 from app.schemas.assistant_schema import AssistantCreateSchema, AssistantUpdateSchema
 from app.core.exceptions import ResourceNotFoundError
-
+from app.core.logger import logger
 
 async def create_assistant(
     user_id: UUID,
@@ -21,6 +21,14 @@ async def create_assistant(
     db.add(assistant)
     await db.commit()
     await db.refresh(assistant)
+    logger.info(
+            "Assistant created successfully",
+            extra={
+                "assistant_id": str(assistant.id),
+                "user_id": str(user_id),
+                "assistant_name": assistant.name,
+            },
+        )
     return assistant
 
 
@@ -55,6 +63,14 @@ async def update_assistant(
 
     await db.commit()
     await db.refresh(assistant)
+    logger.info(
+            "Assistant updated successfully",
+            extra={
+                "assistant_id": str(assistant_id),
+                "user_id": str(user_id),
+                "updated_fields": list(update_data.keys()),
+            },
+        )
     return assistant
 
 
@@ -66,6 +82,14 @@ async def delete_assistant(
     assistant = await _get_assistant_for_user(assistant_id, user_id, db)
     assistant.is_active = False
     await db.commit()
+
+    logger.info(
+        "Assistant soft-deleted successfully",
+        extra={
+            "assistant_id": str(assistant_id),
+            "user_id": str(user_id),
+        },
+    )
 
 
 async def _get_assistant_for_user(
@@ -79,5 +103,12 @@ async def _get_assistant_for_user(
     result = await db.execute(stmt)
     assistant = result.scalar_one_or_none()
     if not assistant:
+        logger.warning(
+            "Assistant lookup failed: resource not found or inactive",
+            extra={
+                "assistant_id": str(assistant_id),
+                "user_id": str(user_id),
+            },
+        )
         raise ResourceNotFoundError("Assistant not found")
     return assistant

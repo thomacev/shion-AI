@@ -1,14 +1,14 @@
-# src/app/services/llm_service.py
-from app.core.gemini_client import get_gemini_client
+import asyncio
 from app.core.config import settings
-from app.core.logger import logger
 from app.core.exceptions import LLMServiceError
+from app.core.gemini_client import get_gemini_client
+from app.core.logger import logger
 
 RETRYABLE_ATTEMPTS = 2
 
 
 def _to_gemini_contents(messages: list[dict]) -> list[dict]:
-    """OpenAI usa 'assistant', Gemini usa 'model' para el mismo rol."""
+    """OpenAI uses 'assistant', Gemini uses 'model' for the same role."""
     return [
         {
             "role": "model" if m["role"] == "assistant" else m["role"],
@@ -43,19 +43,46 @@ async def chat(
             break
         except Exception as e:
             last_error = e
-            logger.warning("llm_retryable_error", attempt=attempt, error=str(e))
+            logger.warning(
+                "LLM generation failed, scheduling retry",
+                extra={
+                    "attempt": attempt,
+                    "max_attempts": RETRYABLE_ATTEMPTS,
+                    "model": model_to_use,
+                    "error": str(e),
+                },
+            )
             if attempt < RETRYABLE_ATTEMPTS:
-                import asyncio
                 await asyncio.sleep(1.5 * attempt)
     else:
-        logger.error("llm_all_retries_failed", error=str(last_error))
+        logger.error(
+            "LLM generation failed after all retries",
+            extra={
+                "max_attempts": RETRYABLE_ATTEMPTS,
+                "model": model_to_use,
+                "error": str(last_error),
+            },
+            exc_info=True,
+        )
         raise LLMServiceError("Model request failed after retries")
 
-    result = {
+    input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0)
+    output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0)
+
+    logger.info(
+        "LLM response generated successfully",
+        extra={
+            "model": model_to_use,
+            "tokens_input": input_tokens,
+            "tokens_output": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+            "message_count": len(messages),
+        },
+    )
+
+    return {
         "content": response.text,
-        "tokens_input": response.usage_metadata.prompt_token_count,
-        "tokens_output": response.usage_metadata.candidates_token_count,
+        "tokens_input": input_tokens,
+        "tokens_output": output_tokens,
         "model": model_to_use,
     }
-    logger.info("llm_response_received", **{k: v for k, v in result.items() if k != "content"})
-    return result
