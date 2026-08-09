@@ -52,8 +52,8 @@ async def is_token_blacklisted(token: str) -> bool:
 
 async def verify_token(token: str, expected_type: str = "access") -> dict | None:
     try:
-        # Check if token is blacklisted
         if await is_token_blacklisted(token):
+            logger.warning("Token verification failed: token is blacklisted")
             return None
 
         payload = jwt.decode(
@@ -61,10 +61,17 @@ async def verify_token(token: str, expected_type: str = "access") -> dict | None
         )
         if payload.get("type") != expected_type:
             logger.warning(
-                f"Token type mismatch: expected {expected_type}, got {payload.get('type')}"
+                "Token verification failed: token type mismatch",
+                extra={
+                    "expected_type": expected_type,
+                    "got_type": payload.get("type"),
+                },
             )
             return None
         return payload
     except JWTError as e:
-        logger.warning(f"JWT decode error: {e}")
+        logger.warning(
+            "Token verification failed: JWT decode error",
+            extra={"error": str(e)},
+        )
         return None
