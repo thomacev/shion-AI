@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, UploadFile, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db, get_current_user
@@ -37,12 +37,12 @@ async def upload_document(
 @router.get("", response_model=list[DocumentResponseSchema])
 async def list_documents(
     assistant_id: UUID,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await document_service.list_documents(assistant_id, current_user["id"], db)
-
-
+    return await document_service.list_documents(assistant_id, current_user["id"], db, limit, offset)
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     assistant_id: UUID,

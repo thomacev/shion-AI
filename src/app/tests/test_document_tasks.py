@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, patch
 from app.services.document_service import run_document_processing
 from app.models.document import Document, DocumentStatus
 from app.core.exceptions import LLMServiceError
+import pytest
+
 
 
 async def test_run_document_processing_marks_ready_and_creates_chunks(db_session, test_assistant):
@@ -25,8 +27,7 @@ async def test_run_document_processing_marks_ready_and_creates_chunks(db_session
     await db_session.refresh(document)
     assert document.status == DocumentStatus.READY
 
-
-async def test_run_document_processing_marks_failed_on_embedding_error(db_session, test_assistant):
+async def test_run_document_processing_raises_on_embedding_error(db_session, test_assistant):
     document = Document(
         assistant_id=UUID(test_assistant["id"]), filename="notes.txt", status=DocumentStatus.PENDING
     )
@@ -34,8 +35,24 @@ async def test_run_document_processing_marks_failed_on_embedding_error(db_sessio
     await db_session.commit()
     await db_session.refresh(document)
 
-    with patch("app.services.document_service.embed", new=AsyncMock(side_effect=LLMServiceError("falló"))):
-        await run_document_processing(document.id, "notes.txt", b"contenido", db_session)
+    with patch("app.services.document_service.embed", new=AsyncMock(side_effect=LLMServiceError("failed"))):
+        with pytest.raises(LLMServiceError):
+            await run_document_processing(document.id, "notes.txt", b"content", db_session)
+
+    await db_session.refresh(document)
+    assert document.status == DocumentStatus.PROCESSING  
+
+
+async def test_run_document_processing_marks_failed_on_extraction_error(db_session, test_assistant):
+    document = Document(
+        assistant_id=UUID(test_assistant["id"]), filename="notes.txt", status=DocumentStatus.PENDING
+    )
+    db_session.add(document)
+    await db_session.commit()
+    await db_session.refresh(document)
+
+    with patch("app.services.document_service.extract_text", side_effect=ValueError("corrupt PDF")):
+        await run_document_processing(document.id, "notes.txt", b"content", db_session)
 
     await db_session.refresh(document)
     assert document.status == DocumentStatus.FAILED

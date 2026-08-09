@@ -6,14 +6,13 @@ import sqlalchemy as sa
 import sqlalchemy.orm as so
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
-
+from app.core.config import settings
 from app.db.session import Base
 
 # Dimensión del modelo de embeddings elegido (openai/text-embedding-3-small
 # vía OpenRouter). Si en algún momento cambiás de modelo por uno con otra
 # dimensión, esta constante y la migración tienen que actualizarse juntas —
 # no hay forma de que la columna Vector se ajuste sola.
-EMBEDDING_DIM = 1536
 
 
 class DocumentStatus(Enum):
@@ -57,7 +56,7 @@ class DocumentChunk(Base):
     )
     content: so.Mapped[str] = so.mapped_column(sa.Text)
     chunk_index: so.Mapped[int] = so.mapped_column(sa.Integer)
-    embedding: so.Mapped[list[float]] = so.mapped_column(Vector(EMBEDDING_DIM))
+    embedding: so.Mapped[list[float]] = so.mapped_column(Vector(settings.EMBEDDING_DIM))
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

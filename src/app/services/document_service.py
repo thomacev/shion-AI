@@ -1,35 +1,17 @@
-from io import BytesIO
 from uuid import UUID
-
-from pypdf import PdfReader
+from app.services.document_processing import extract_text, chunk_text
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.document import Document, DocumentChunk, DocumentStatus, EMBEDDING_DIM
+from app.models.document import Document, DocumentChunk, DocumentStatus
 from app.services.assistant_service import _get_assistant_for_user
 from app.services.embedding_service import embed
+from sqlalchemy import select, delete
 from app.core.exceptions import ResourceNotFoundError
+from app.core.exceptions import ResourceNotFoundError, LLMServiceError
 
 
-def extract_text(filename: str, content: bytes) -> str:
-    if filename.lower().endswith(".pdf"):
-        reader = PdfReader(BytesIO(content))
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
-    return content.decode("utf-8", errors="ignore")  # .txt, .md, etc.
 
-
-def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[str]:
-
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        chunks.append(text[start:end])
-        start = end - overlap
-    return [c.strip() for c in chunks if c.strip()]
-
-
-#ver como es el tema de los endpoints con estas 2 nuevas funciones
 async def create_pending_document(
     assistant_id: UUID,
     user_id: UUID,
@@ -37,7 +19,6 @@ async def create_pending_document(
     db: AsyncSession,
 ) -> Document:
     await _get_assistant_for_user(assistant_id, user_id, db)
-
     document = Document(assistant_id=assistant_id, filename=filename, status=DocumentStatus.PENDING)
     db.add(document)
     await db.commit()
@@ -51,7 +32,6 @@ async def run_document_processing(
     content: bytes,
     db: AsyncSession,
 ) -> None:
-
     document = await db.get(Document, document_id)
     document.status = DocumentStatus.PROCESSING
     await db.commit()
@@ -59,8 +39,18 @@ async def run_document_processing(
     try:
         text = extract_text(filename, content)
         chunks = chunk_text(text)
-        embeddings = await embed(chunks)
+    except Exception as e:
+        await db.rollback()
+        document = await db.get(Document, document_id)
+        document.status = DocumentStatus.FAILED
+        document.error_message = str(e)
+        await db.commit()
+        return
 
+    try:
+        embeddings = await embed(chunks, task_type="RETRIEVAL_DOCUMENT")
+
+        await db.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document.id))
         for i, (chunk_content, vector) in enumerate(zip(chunks, embeddings)):
             db.add(DocumentChunk(
                 document_id=document.id,
@@ -68,13 +58,20 @@ async def run_document_processing(
                 chunk_index=i,
                 embedding=vector,
             ))
-
         document.status = DocumentStatus.READY
         await db.commit()
+
+    except LLMServiceError:
+        await db.rollback()
+        raise
+
     except Exception as e:
+        await db.rollback()
+        document = await db.get(Document, document_id)
         document.status = DocumentStatus.FAILED
         document.error_message = str(e)
         await db.commit()
+
 
 async def search_relevant_chunks(
     assistant_id: UUID,
@@ -96,13 +93,16 @@ async def list_documents(
     assistant_id: UUID,
     user_id: UUID,
     db: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
 ) -> list[Document]:
     await _get_assistant_for_user(assistant_id, user_id, db)
-
     stmt = (
         select(Document)
         .where(Document.assistant_id == assistant_id)
         .order_by(Document.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
@@ -116,7 +116,7 @@ async def delete_document(
 ) -> None:
     await _get_assistant_for_user(assistant_id, user_id, db)
     document = await _get_document_for_assistant(document_id, assistant_id, db)
-    await db.delete(document)  # AsyncSession.delete() es coroutine, necesita await
+    await db.delete(document)
     await db.commit()
 
 

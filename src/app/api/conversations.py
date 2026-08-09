@@ -1,7 +1,7 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request, Query
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Request
 
 from app.core.dependencies import get_db, get_current_user
 from app.schemas.conversation_schema import (
@@ -38,19 +38,16 @@ async def create_conversation(
     )
 
 
-@router.get(
-    "",
-    response_model=list[ConversationResponseSchema],
-)
+@router.get("", response_model=list[ConversationResponseSchema])
 async def list_conversations(
     assistant_id: UUID,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     return await conversation_service.list_conversations(
-        assistant_id=assistant_id,
-        user_id=current_user["id"],
-        db=db,
+        assistant_id=assistant_id, user_id=current_user["id"], db=db, limit=limit, offset=offset
     )
 
 
@@ -76,19 +73,16 @@ async def send_message(
     )
 
 
-@router.get(
-    "/{conversation_id}/messages",
-    response_model=list[MessageResponseSchema],
-)
+@router.get("/{conversation_id}/messages", response_model=list[MessageResponseSchema])
 async def get_messages(
     assistant_id: UUID,
     conversation_id: UUID,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     return await conversation_service.get_messages(
-        conversation_id=conversation_id,
-        assistant_id=assistant_id,
-        user_id=current_user["id"],
-        db=db,
+        conversation_id=conversation_id, assistant_id=assistant_id, user_id=current_user["id"],
+        db=db, limit=limit, offset=offset,
     )

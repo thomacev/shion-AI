@@ -1,14 +1,24 @@
 # app/core/logger.py
 import logging
 import logging.handlers
-import sys
 import queue
-import structlog
+import sys
 from pathlib import Path
+
+import structlog
 from app.core.config import settings
 
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
+
+
+class StructlogQueueHandler(logging.handlers.QueueHandler):
+    """
+    QueueHandler personalizado que evita que prepare() convierta
+    el dict de structlog (record.msg) en una cadena de texto.
+    """
+    def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
+        return record
 
 
 def setup_logger():
@@ -21,9 +31,9 @@ def setup_logger():
     ]
 
     if settings.DEBUG:
-        renderer = structlog.dev.ConsoleRenderer()
+        console_renderer = structlog.dev.ConsoleRenderer()
     else:
-        renderer = structlog.processors.JSONRenderer()
+        console_renderer = structlog.processors.JSONRenderer()
 
     structlog.configure(
         processors=shared_processors
@@ -36,28 +46,33 @@ def setup_logger():
         cache_logger_on_first_use=True,
     )
 
-    formatter = structlog.stdlib.ProcessorFormatter(
-        processor=renderer,
+    # Formatter para Consola
+    console_formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            console_renderer,
+        ],
     )
 
-    # Handler consola — queda igual, stdout no bloquea de forma relevante
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
+    console_handler.setFormatter(console_formatter)
 
-    # Handler archivo — el cambio importante:
-    # en vez de escribir a disco directamente en el hilo que atiende
-    # la request, mandamos el registro a una cola en memoria y un
-    # hilo aparte (QueueListener) hace la escritura real a disco.
+    # Formatter para Archivo JSON
     file_formatter = structlog.stdlib.ProcessorFormatter(
-        processor=structlog.processors.JSONRenderer(),
         foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.JSONRenderer(),
+        ],
     )
+
     file_handler = logging.FileHandler(LOG_DIR / "app.log")
     file_handler.setFormatter(file_formatter)
 
+    # QueueHandler personalizado sin corrupción de dict
     log_queue: queue.Queue = queue.Queue(-1)
-    queue_handler = logging.handlers.QueueHandler(log_queue)
+    queue_handler = StructlogQueueHandler(log_queue)
     queue_listener = logging.handlers.QueueListener(
         log_queue, file_handler, respect_handler_level=True
     )

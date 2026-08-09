@@ -3,13 +3,44 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.conversation import Conversation, Message, MessageRole
-from app.models.assistant import Assistant
+from app.models.document import DocumentChunk
 from app.schemas.conversation_schema import ConversationCreateSchema
 from app.core.exceptions import ResourceNotFoundError
 
 from app.services.llm_service import chat
 from app.services.embedding_service import embed
 from app.services.document_service import search_relevant_chunks
+from app.services.assistant_service import _get_assistant_for_user
+
+
+
+def build_system_prompt(base_prompt: str, context_chunks: list[DocumentChunk]) -> str:
+    if not context_chunks:
+        return base_prompt
+    context_text = "\n\n".join(chunk.content for chunk in context_chunks)
+    return f"{base_prompt}\n\nRelevant context for the assistant:\n{context_text}"
+
+async def _get_recent_history(
+    conversation_id: UUID,
+    exclude_message_id: UUID,
+    db: AsyncSession,
+    limit: int = 20,
+) -> list[dict]:
+    stmt = (
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.id != exclude_message_id,
+        )
+        .order_by(Message.created_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    recent_messages = list(result.scalars().all())
+    return [
+        {"role": message.role.value, "content": message.content}
+        for message in reversed(recent_messages)
+    ]
 
 async def create_conversation(
     assistant_id: UUID,
@@ -47,35 +78,14 @@ async def send_message(
     db.add(user_message)
     await db.flush()
 
-    #this replace the mock, but my tests are gonna fail so far
-    #there are other ways to do this, but for now I will keep it simple and just get the last 20 messages from the conversation
-    stmt = (
-        select(Message)
-        .where(
-            Message.conversation_id == conversation_id,
-            Message.id != user_message.id,
-            )
-        .order_by(Message.created_at.desc())
-        .limit(20)
-    )
-
-    result = await db.execute(stmt)
-    recent_messages = list(result.scalars().all())
-
-    history = [
-        {"role": message.role.value, "content": message.content}
-        for message in reversed(recent_messages)
-    ]
+    history = await _get_recent_history(conversation_id, user_message.id, db)
     history.append({"role": "user", "content": content})
-    [query_embedding] = await embed([content])
+
+    [query_embedding] = await embed([content], task_type="RETRIEVAL_QUERY")
     relevant_chunks = await search_relevant_chunks(assistant_id, query_embedding, db)
-    system_prompt = assistant.system_prompt
-    if relevant_chunks:
-        context_text = "\n\n".join(chunk.content for chunk in relevant_chunks)
-        system_prompt += f"\n\nRelevant context for the assistant:\n{context_text}"
-    llm_response = await chat(
-        system_prompt=system_prompt,
-        messages=history,)
+    system_prompt = build_system_prompt(assistant.system_prompt, relevant_chunks)
+
+    llm_response = await chat(system_prompt=system_prompt, messages=history)
     
     assistant_message = Message(
         conversation_id=conversation_id,
@@ -98,6 +108,8 @@ async def list_conversations(
     assistant_id: UUID,
     user_id: UUID,
     db: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
 ) -> list[Conversation]:
     await _get_assistant_for_user(assistant_id, user_id, db)
 
@@ -105,6 +117,8 @@ async def list_conversations(
         select(Conversation)
         .where(Conversation.assistant_id == assistant_id)
         .order_by(Conversation.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
@@ -115,6 +129,8 @@ async def get_messages(
     assistant_id: UUID,
     user_id: UUID,
     db: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
 ) -> list[Message]:
     await _get_assistant_for_user(assistant_id, user_id, db)
     await _get_conversation_for_assistant(conversation_id, assistant_id, db)
@@ -123,24 +139,11 @@ async def get_messages(
         select(Message)
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.created_at)
+        .limit(limit)
+        .offset(offset)
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
-
-
-async def _get_assistant_for_user(
-    assistant_id: UUID,
-    user_id: UUID,
-    db: AsyncSession,
-) -> Assistant:
-    stmt = select(Assistant).where(
-        Assistant.id == assistant_id, Assistant.user_id == user_id, Assistant.is_active
-    )
-    result = await db.execute(stmt)
-    assistant = result.scalar_one_or_none()
-    if not assistant:
-        raise ResourceNotFoundError("Assistant not found")
-    return assistant
 
 
 async def _get_conversation_for_assistant(
