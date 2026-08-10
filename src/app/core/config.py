@@ -1,46 +1,39 @@
 # app/core/config.py
 from functools import lru_cache
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Database
     DATABASE_URL: str
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
-    DATABASE_TEST_URL: Optional[str] = None
-    # JWT
-    SECRET_KEY: str
-    ALGORITHM: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int
-    REFRESH_TOKEN_EXPIRE_DAYS: int
-
-    # CORS
-    ALLOWED_ORIGINS: list[str]
-
-    # App
-    APP_NAME: str
-    DEBUG: bool
-
-    # LLM
-    GEMINI_API_KEY: str
-    MODEL_NAME: str
-    API_V1_STR: str
-    LLM_MAX_TOKENS: int
-    LLM_TEMPERATURE: float
-    EMBEDDING_MODEL: str 
-    EMBEDDING_DIM: int
-    
-    # Redis
     REDIS_URL: str
-    RATE_LIMIT_ENABLED: bool
-    CACHE_TTL_DEFAULT: int
-    REDIS_PASSWORD: str
-
-    #Celery
     CELERY_BROKER_URL: str
+    GEMINI_API_KEY: str
+    SECRET_KEY: str
+
+    POSTGRES_USER: Optional[str] = None
+    POSTGRES_PASSWORD: Optional[str] = None
+    POSTGRES_DB: Optional[str] = None
+    DATABASE_TEST_URL: Optional[str] = None
+    REDIS_PASSWORD: Optional[str] = None
+
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ALLOWED_ORIGINS: list[str] = ["*"]
+
+    APP_NAME: str = "Shion AI Assistant"
+    DEBUG: bool = False
+    API_V1_STR: str = "/api/v1"
+
+    MODEL_NAME: str = "gemini-1.5-flash"
+    LLM_MAX_TOKENS: int = 2048
+    LLM_TEMPERATURE: float = 0.7
+    EMBEDDING_MODEL: str = "text-embedding-004"
+    EMBEDDING_DIM: int = 768
+
+    RATE_LIMIT_ENABLED: bool = True
+    CACHE_TTL_DEFAULT: int = 300
 
     model_config = SettingsConfigDict(
         env_file=".env",
