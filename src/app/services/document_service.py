@@ -6,16 +6,25 @@ from app.models.document import Document, DocumentChunk, DocumentStatus
 from app.services.document_processing import extract_text, chunk_text
 from app.services.assistant_service import _get_assistant_for_user
 from app.services.embedding_service import embed
-from app.core.exceptions import ResourceNotFoundError, LLMServiceError
+from app.core.config import settings
+from app.core.exceptions import ResourceNotFoundError, LLMServiceError, DocumentTooLargeError
 from app.core.logger import logger
+
+MAX_DOCUMENT_SIZE_BYTES = settings.MAX_DOCUMENT_SIZE_MB * 1024 * 1024
+
 
 async def create_pending_document(
     assistant_id: UUID,
     user_id: UUID,
     filename: str,
+    content_size: int,
     db: AsyncSession,
 ) -> Document:
     await _get_assistant_for_user(assistant_id, user_id, db)
+
+    if content_size > MAX_DOCUMENT_SIZE_BYTES:
+        raise DocumentTooLargeError(f"Document exceeds the maximum allowed size of {settings.MAX_DOCUMENT_SIZE_MB}MB")
+
     document = Document(
         assistant_id=assistant_id,
         filename=filename,

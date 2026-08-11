@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     RATE_LIMIT_ENABLED: bool = True
     CACHE_TTL_DEFAULT: int = 300
 
+    MAX_DOCUMENT_SIZE_MB: int = 10
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

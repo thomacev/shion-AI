@@ -1,4 +1,6 @@
 # app/core/exception_handlers.py
+from os import sync
+
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
@@ -9,7 +11,8 @@ from app.core.exceptions import (
     InsufficientPermissionsError,
     ValidationError,
     ResourceNotFoundError,
-    LLMServiceError
+    LLMServiceError,
+    DocumentTooLargeError,
 )
 
 
@@ -84,4 +87,10 @@ def setup_exception_handlers(app):
         return JSONResponse(
             status_code=status.HTTP_502_BAD_GATEWAY,
             content={"detail": exc.message or "Error interacting with the LLM service"},
+        )
+    @app.exception_handler(DocumentTooLargeError)
+    async def document_too_large_handler(request: Request, exc: DocumentTooLargeError):
+        return JSONResponse(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            content={"detail": exc.message or "Document exceeds the maximum allowed size"},
         )

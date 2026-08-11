@@ -54,3 +54,7 @@ class LLMServiceError(DomainException):
     """Raised when there is an error interacting with the LLM service."""
 
     pass
+
+class DocumentTooLargeError(DomainException):
+    """Raised when a document exceeds the maximum allowed size."""
+    pass

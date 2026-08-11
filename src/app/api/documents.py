@@ -1,10 +1,13 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, File, UploadFile, status, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
+
 
 from app.core.dependencies import get_db, get_current_user
 from app.schemas.document_schema import DocumentResponseSchema
 from app.services import document_service
+from app.services.document_service import MAX_DOCUMENT_SIZE_BYTES
 
 import base64
 from app.tasks.document_tasks import process_document_task
@@ -16,16 +19,27 @@ router = APIRouter(prefix="/assistants/{assistant_id}/documents", tags=["documen
 #nuevo
 @router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=DocumentResponseSchema)
 async def upload_document(
+    request: Request,
     assistant_id: UUID,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+
     content = await file.read()
+
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_DOCUMENT_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds the maximum allowed size of {settings.MAX_DOCUMENT_SIZE_MB}MB",
+        )
+    
     document = await document_service.create_pending_document(
         assistant_id=assistant_id,
         user_id=current_user["id"],
         filename=file.filename,
+        content_size=len(content),
         db=db,
     )
     process_document_task.delay(

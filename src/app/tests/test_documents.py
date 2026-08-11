@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, patch
 import uuid
 from app.core.exceptions import LLMServiceError
+from app.core.config import settings
 
 class TestUploadDocument:
     async def test_upload_dispatches_processing_task(self, client, auth_headers, test_assistant):
@@ -23,15 +24,23 @@ class TestUploadDocument:
             )
         assert response.status_code == 404
 
-    async def test_cannot_upload_to_other_users_assistant(
-        self, client, other_user_headers, test_assistant
-    ):
+    async def test_cannot_upload_to_other_users_assistant(self, client, other_user_headers, test_assistant):
+            with patch("app.api.documents.process_document_task.delay"):
+                response = await client.post(
+                    f"/assistants/{test_assistant['id']}/documents",
+                    files={"file": ("notes.txt", b"contenido", "text/plain")},
+                    headers=other_user_headers,
+                )
+            assert response.status_code == 404
+
+    async def test_upload_rejects_file_over_size_limit(self,client, auth_headers, test_assistant):
+        huge_content = b"x" * (settings.MAX_DOCUMENT_SIZE_MB * 1024 * 1024 + 1)
         response = await client.post(
             f"/assistants/{test_assistant['id']}/documents",
-            files={"file": ("notes.txt", b"contenido", "text/plain")},
-            headers=other_user_headers,
+            files={"file": ("big.txt", huge_content, "text/plain")},
+            headers=auth_headers,
         )
-        assert response.status_code == 404
+        assert response.status_code == 413
 
 
 class TestListDocuments:

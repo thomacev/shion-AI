@@ -147,16 +147,22 @@ async def cleanup_redis():
 
 @pytest_asyncio.fixture
 async def test_document(client, auth_headers, test_assistant, db_session):
+    sample_content = b"El horario de atencion es de 9 a 18."
+
     document = await create_pending_document(
         assistant_id=UUID(test_assistant["id"]),
         user_id=UUID(test_assistant["user_id"]),
         filename="notes.txt",
+        content_size=len(sample_content),  # <-- Pasas la cantidad exacta de bytes
         db=db_session,
     )
 
-    with patch("app.services.document_service.embed", new=AsyncMock(return_value=[[0.1] * 1536])):
+    with patch(
+        "app.services.document_service.embed",
+        new=AsyncMock(return_value=[[0.1] * 1536]),
+    ):
         await run_document_processing(
-            document.id, "notes.txt", b"El horario de atencion es de 9 a 18.", db_session
+            document.id, "notes.txt", sample_content, db_session
         )
 
     await db_session.refresh(document)
