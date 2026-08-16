@@ -137,3 +137,40 @@ async def test_rag_injects_relevant_context_into_system_prompt(
     # Lo que importa: confirmar que el contenido del chunk llegó al system_prompt
     called_kwargs = mock_chat.call_args.kwargs
     assert "El horario de atención es de 9 a 18." in called_kwargs["system_prompt"]
+
+async def test_toggle_rag_mid_conversation(client, auth_headers, test_assistant, test_conversation):
+    fake_llm_response = {"content": "ok", "tokens_input": 5, "tokens_output": 5, "model": "test-model"}
+
+    with (
+        patch("app.services.conversation_service.embed", new=AsyncMock(return_value=[[0.1] * 1536])),
+        patch("app.services.conversation_service.search_relevant_chunks", new=AsyncMock(return_value=[])),
+        patch("app.services.conversation_service.chat", new=AsyncMock(return_value=fake_llm_response)),
+    ):
+        await client.post(
+            f"/assistants/{test_assistant['id']}/conversations/{test_conversation['id']}/messages",
+            json={"content": "charla casual"}, headers=auth_headers,
+        )
+
+    patch_response = await client.patch(
+        f"/assistants/{test_assistant['id']}/conversations/{test_conversation['id']}",
+        json={"use_rag": False}, headers=auth_headers,
+    )
+    assert patch_response.json()["use_rag"] is False
+
+    with (
+        patch("app.services.conversation_service.embed", new=AsyncMock()) as mock_embed,
+        patch("app.services.conversation_service.chat", new=AsyncMock(return_value=fake_llm_response)),
+    ):
+        await client.post(
+            f"/assistants/{test_assistant['id']}/conversations/{test_conversation['id']}/messages",
+            json={"content": "otro mensaje"}, headers=auth_headers,
+        )
+    mock_embed.assert_not_called()  # confirma que, tras el PATCH, dejó de buscar
+
+
+async def test_cannot_update_other_users_conversation(client, other_user_headers, test_assistant, test_conversation):
+    response = await client.patch(
+        f"/assistants/{test_assistant['id']}/conversations/{test_conversation['id']}",
+        json={"use_rag": False}, headers=other_user_headers,
+    )
+    assert response.status_code == 404

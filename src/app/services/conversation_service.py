@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.conversation import Conversation, Message, MessageRole
 from app.models.document import DocumentChunk
-from app.schemas.conversation_schema import ConversationCreateSchema
+from app.schemas.conversation_schema import ConversationCreateSchema, ConversationUpdateSchema
 from app.core.exceptions import ResourceNotFoundError
 
 from app.services.llm_service import chat
@@ -54,6 +54,7 @@ async def create_conversation(
     conversation = Conversation(
         assistant_id=assistant_id,
         title=data.title,
+        use_rag=data.use_rag
     )
     db.add(conversation)
     await db.commit()
@@ -69,6 +70,33 @@ async def create_conversation(
     )
     return conversation
 
+async def update_conversation(
+    conversation_id: UUID,
+    assistant_id: UUID,
+    user_id: UUID,
+    data: ConversationUpdateSchema,
+    db: AsyncSession,
+) -> Conversation:
+    await _get_assistant_for_user(assistant_id, user_id, db)
+    conversation = await _get_conversation_for_assistant(conversation_id, assistant_id, db)
+
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(conversation, field, value)
+
+    await db.commit()
+    await db.refresh(conversation)
+
+    logger.info(
+        "Conversation updated successfully",
+        extra={
+            "conversation_id": str(conversation_id),
+            "assistant_id": str(assistant_id),
+            "user_id": str(user_id),
+            "updated_fields": list(update_data.keys()),
+        },
+    )
+    return conversation
 
 async def send_message(
     assistant_id: UUID,
@@ -78,15 +106,18 @@ async def send_message(
     db: AsyncSession,
 ) -> dict:
     assistant = await _get_assistant_for_user(assistant_id, user_id, db)
-    await _get_conversation_for_assistant(conversation_id, assistant_id, db)
+    conversation = await _get_conversation_for_assistant(conversation_id, assistant_id, db)
+
     logger.info(
-            "Processing user message for conversation",
-            extra={
-                "conversation_id": str(conversation_id),
-                "assistant_id": str(assistant_id),
-                "user_id": str(user_id),
-            },
-        )
+        "Processing user message for conversation",
+        extra={
+            "conversation_id": str(conversation_id),
+            "assistant_id": str(assistant_id),
+            "user_id": str(user_id),
+            "use_rag": conversation.use_rag,
+        },
+    )
+
     user_message = Message(
         conversation_id=conversation_id,
         role=MessageRole.USER,
@@ -98,21 +129,29 @@ async def send_message(
     history = await _get_recent_history(conversation_id, user_message.id, db)
     history.append({"role": "user", "content": content})
 
-    [query_embedding] = await embed([content], task_type="RETRIEVAL_QUERY")
-    relevant_chunks = await search_relevant_chunks(assistant_id, query_embedding, db)
-
-    logger.info(
+    if conversation.use_rag:
+        [query_embedding] = await embed([content], task_type="RETRIEVAL_QUERY")
+        relevant_chunks = await search_relevant_chunks(assistant_id, query_embedding, db)
+        logger.info(
             "Retrieved context chunks for message",
             extra={
                 "conversation_id": str(conversation_id),
                 "chunks_found": len(relevant_chunks),
             },
         )
+    else:
+        relevant_chunks = []
+        logger.info(
+            "RAG context retrieval skipped for conversation",
+            extra={
+                "conversation_id": str(conversation_id),
+                "use_rag": False,
+            },
+        )
 
     system_prompt = build_system_prompt(assistant.system_prompt, relevant_chunks)
-
     llm_response = await chat(system_prompt=system_prompt, messages=history)
-    
+
     assistant_message = Message(
         conversation_id=conversation_id,
         role=MessageRole.ASSISTANT,
@@ -124,15 +163,16 @@ async def send_message(
     await db.refresh(assistant_message)
 
     logger.info(
-            "Message sent and assistant response generated",
-            extra={
-                "conversation_id": str(conversation_id),
-                "user_message_id": str(user_message.id),
-                "assistant_message_id": str(assistant_message.id),
-                "tokens_used": llm_response["tokens_output"],
-                "model": llm_response["model"],
-            },
-        )
+        "Message sent and assistant response generated",
+        extra={
+            "conversation_id": str(conversation_id),
+            "user_message_id": str(user_message.id),
+            "assistant_message_id": str(assistant_message.id),
+            "tokens_used": llm_response["tokens_output"],
+            "model": llm_response["model"],
+            "use_rag": conversation.use_rag,
+        },
+    )
 
     return {
         "message": assistant_message,
@@ -204,3 +244,4 @@ async def _get_conversation_for_assistant(
                 )
         raise ResourceNotFoundError("Conversation not found")
     return conversation
+

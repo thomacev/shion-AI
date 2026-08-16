@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     CACHE_TTL_DEFAULT: int = 300
 
     MAX_DOCUMENT_SIZE_MB: int = 10
+    RAG_MAX_DISTANCE: float = 0.5
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -9,12 +9,6 @@ from pgvector.sqlalchemy import Vector
 from app.core.config import settings
 from app.db.session import Base
 
-# Dimensión del modelo de embeddings elegido (openai/text-embedding-3-small
-# vía OpenRouter). Si en algún momento cambiás de modelo por uno con otra
-# dimensión, esta constante y la migración tienen que actualizarse juntas —
-# no hay forma de que la columna Vector se ajuste sola.
-
-
 class DocumentStatus(Enum):
     PENDING = "pending"
     PROCESSING = "processing"
@@ -39,7 +33,8 @@ class Document(Base):
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-
+    content_type: so.Mapped[str | None] = so.mapped_column(sa.String(128), nullable=True)
+    original_content: so.Mapped[bytes | None] = so.mapped_column(sa.LargeBinary, nullable=True)
     chunks: so.Mapped[list["DocumentChunk"]] = so.relationship(
         "DocumentChunk", back_populates="document", cascade="all, delete-orphan"
     )

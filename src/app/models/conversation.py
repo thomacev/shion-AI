@@ -33,7 +33,7 @@ class Conversation(Base):
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-
+    use_rag: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
     assistant: so.Mapped["Assistant"] = so.relationship(
         "Assistant", back_populates="conversations"
     )

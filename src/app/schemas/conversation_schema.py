@@ -8,6 +8,7 @@ from app.models.conversation import MessageRole
 # o podria crearlo la IA basandose en las primeras palabras del mensaje, pero eso es mas complicado
 class ConversationCreateSchema(BaseModel):
     title: str | None = None
+    use_rag: bool = True
 
     @field_validator("title")
     @classmethod
@@ -22,13 +23,15 @@ class ConversationCreateSchema(BaseModel):
 
         return value
 
+class ConversationUpdateSchema(BaseModel):
+    use_rag: bool | None = None
 
 class ConversationResponseSchema(BaseModel):
     id: UUID
     assistant_id: UUID
     title: str | None
+    use_rag: bool
     created_at: datetime
-
     model_config = ConfigDict(from_attributes=True)
 
 

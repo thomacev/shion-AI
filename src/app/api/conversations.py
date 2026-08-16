@@ -10,6 +10,7 @@ from app.schemas.conversation_schema import (
     MessageCreateSchema,
     MessageResponseSchema,
     ChatResponseSchema,
+    ConversationUpdateSchema
 )
 from app.services import conversation_service
 from app.core.rate_limit import limiter
@@ -50,11 +51,7 @@ async def list_conversations(
         assistant_id=assistant_id, user_id=current_user["id"], db=db, limit=limit, offset=offset
     )
 
-
-@router.post(
-    "/{conversation_id}/messages",
-    response_model=ChatResponseSchema,
-)
+@router.post("/{conversation_id}/messages", response_model=ChatResponseSchema)
 @limiter.limit("10/minute")
 async def send_message(
     request: Request,
@@ -65,13 +62,9 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
 ):
     return await conversation_service.send_message(
-        assistant_id=assistant_id,
-        conversation_id=conversation_id,
-        user_id=current_user["id"],
-        content=data.content,
-        db=db,
+        assistant_id=assistant_id, conversation_id=conversation_id,
+        user_id=current_user["id"], content=data.content, db=db,
     )
-
 
 @router.get("/{conversation_id}/messages", response_model=list[MessageResponseSchema])
 async def get_messages(
@@ -85,4 +78,17 @@ async def get_messages(
     return await conversation_service.get_messages(
         conversation_id=conversation_id, assistant_id=assistant_id, user_id=current_user["id"],
         db=db, limit=limit, offset=offset,
+    )
+
+@router.patch("/{conversation_id}", response_model=ConversationResponseSchema)
+async def update_conversation(
+    assistant_id: UUID,
+    conversation_id: UUID,
+    data: ConversationUpdateSchema,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await conversation_service.update_conversation(
+        conversation_id=conversation_id, assistant_id=assistant_id,
+        user_id=current_user["id"], data=data, db=db,
     )

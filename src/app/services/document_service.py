@@ -17,18 +17,21 @@ async def create_pending_document(
     assistant_id: UUID,
     user_id: UUID,
     filename: str,
-    content_size: int,
+    content: bytes,
+    content_type: str | None,
     db: AsyncSession,
 ) -> Document:
     await _get_assistant_for_user(assistant_id, user_id, db)
 
-    if content_size > MAX_DOCUMENT_SIZE_BYTES:
+    if len(content) > MAX_DOCUMENT_SIZE_BYTES:
         raise DocumentTooLargeError(f"Document exceeds the maximum allowed size of {settings.MAX_DOCUMENT_SIZE_MB}MB")
 
     document = Document(
         assistant_id=assistant_id,
         filename=filename,
         status=DocumentStatus.PENDING,
+        content_type=content_type,
+        original_content=content,
     )
     db.add(document)
     await db.commit()
@@ -125,6 +128,7 @@ async def run_document_processing(
                 exc_info=True,
             )
 
+
 async def search_relevant_chunks(
     assistant_id: UUID,
     query_embedding: list[float],
@@ -132,14 +136,26 @@ async def search_relevant_chunks(
     limit: int = 4,
 ) -> list[DocumentChunk]:
     stmt = (
-        select(DocumentChunk)
+        select(
+            DocumentChunk,
+            DocumentChunk.embedding.cosine_distance(query_embedding).label("distance"),
+        )
         .join(Document, DocumentChunk.document_id == Document.id)
         .where(Document.assistant_id == assistant_id, Document.status == DocumentStatus.READY)
-        .order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
+        .order_by("distance")
         .limit(limit)
     )
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    rows = result.all()
+    
+    logger.info(
+        "rag_search",
+        assistant_id=str(assistant_id),
+        distances=[round(row.distance, 4) for row in rows],
+        threshold=settings.RAG_MAX_DISTANCE,
+    )
+
+    return [row.DocumentChunk for row in rows if row.distance <= settings.RAG_MAX_DISTANCE]
 
 async def list_documents(
     assistant_id: UUID,

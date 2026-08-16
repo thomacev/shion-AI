@@ -112,3 +112,20 @@ class TestGetDocument:
             headers=other_user_headers,
         )
         assert response.status_code == 404
+
+async def test_download_document_returns_original_file(client, auth_headers, test_assistant, test_document):
+    response = await client.get(
+        f"/assistants/{test_assistant['id']}/documents/{test_document['id']}/file",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.content == b"El horario de atencion es de 9 a 18."
+    assert response.headers["content-type"] == "text/plain; charset=utf-8"
+
+
+async def test_cannot_download_other_users_document(client, other_user_headers, test_assistant, test_document):
+    response = await client.get(
+        f"/assistants/{test_assistant['id']}/documents/{test_document['id']}/file",
+        headers=other_user_headers,
+    )
+    assert response.status_code == 404
