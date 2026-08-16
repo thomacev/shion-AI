@@ -2,265 +2,358 @@
 
 ![CI](https://github.com/thomacev/shion-AI/actions/workflows/ci.yml/badge.svg)
 
-A backend platform to create and manage personalized AI assistants, featuring conversational memory and the ability to answer based on custom documents (RAG). Built as a portfolio project to demonstrate real-world backend design — this is not a thin LLM wrapper, but a complete system with authentication, multi-tenancy, resilience to external service failures, background processing, and a highly defensible architectural decision surface.
+A backend platform for creating and managing personalized AI assistants with conversational memory and RAG-based document retrieval.
 
-- **Live Demo:** `https://shion-ai-production.up.railway.app`
-- **Interactive Documentation:** `https://shion-ai-production.up.railway.app/docs`
+Built as a portfolio project to demonstrate production-oriented backend engineering, asynchronous processing, LLM integration, and retrieval-augmented generation.
+
+**Live Demo:** https://shion-ai-production.up.railway.app  
+**Interactive API Documentation:** https://shion-ai-production.up.railway.app/docs
 
 ---
 
 ## Project Status
 
-- ✅ **Week 1** — Auth, Assistant CRUD, conversations with mock responses, testing, CI
-- ✅ **Week 2** — Real LLM integration (retries, error handling), rate limiting, network-isolated testing
-- ✅ **Week 3** — RAG with custom documents: text extraction, chunking, embeddings, vector search using `pgvector`
-- ✅ **Week 4** — Background document processing with Celery, full migration to the Gemini API (chat + embeddings)
-- ✅ **Week 5** — Critical architectural review applied, Celery resilience, file size limits, relevance thresholds, RAG toggle, original file persistence, **deployment on Railway**
+The MVP is complete and deployed.
 
-- Detailed documentation for each week (in Spanish): [`SEMANA_1.md`](./SEMANA_1.md) · [`SEMANA_2.md`](./SEMANA_2.md) · [`SEMANA_3.md`](./SEMANA_3.md) · [`SEMANA_4.md`](./SEMANA_4.md) · [`SEMANA_5.md`](./SEMANA_5.md)
-- AI concepts explained from scratch (vectors, embeddings, RAG, etc.): [`CONCEPTOS_IA.md`](./CONCEPTOS_IA.md)
+- ✅ Authentication and authorization
+- ✅ Multi-user AI assistants
+- ✅ Conversational history
+- ✅ LLM integration with retry and error handling
+- ✅ Rate limiting
+- ✅ Document ingestion and processing
+- ✅ Embeddings and vector search with `pgvector`
+- ✅ RAG-based responses
+- ✅ Background document processing with Celery
+- ✅ Redis-based infrastructure
+- ✅ Integration with Google Gemini for chat and embeddings
+- ✅ Integration and testing against real PostgreSQL + pgvector
+- ✅ CI with GitHub Actions
+- ✅ Production deployment on Railway
+
+Detailed development history:
+
+- [`SEMANA_1.md`](./SEMANA_1.md)
+- [`SEMANA_2.md`](./SEMANA_2.md)
+- [`SEMANA_3.md`](./SEMANA_3.md)
+- [`SEMANA_4.md`](./SEMANA_4.md)
+- [`SEMANA_5.md`](./SEMANA_5.md)
+
+AI concepts explained from first principles:
+
+- [`CONCEPTOS_IA.md`](./CONCEPTOS_IA.md)
 
 ---
 
-## Key Design Decisions
+## Key Engineering Decisions
 
-For those evaluating this project quickly, here is what is worth reviewing before diving into the code:
+The following decisions are the most relevant parts of the project from an engineering perspective.
 
-- **The AI provider was migrated once, in production, without touching business logic.** `conversation_service.py` didn't change a single line when the project moved from OpenRouter to the Gemini API — proof that decoupling by function (without formal interfaces or heavy frameworks) is highly effective when well thought out. Full details in `SEMANA_4.md`.
-- **The document pipeline is idempotent.** A Celery retry on the same task does not duplicate chunks — this was detected and fixed before reaching production, not as a post-incident patch. Details in `SEMANA_5.md`.
-- **An external architectural review was analyzed critically, not applied blindly.** Out of 10 suggested points, 4 were accepted (with justified severity), 4 were rejected (with explicit criteria on when to reconsider them), and 2 were partially accepted. The complete reasoning, including disagreements, is in `SEMANA_5.md`.
-- **RAG with real safeguards, not just the happy path.** Minimum relevance thresholds (not everything "closest" is relevant), per-conversation RAG toggles, and file size limits — built after explicitly reasoning the risk of each gap, rather than following a generic checklist.
+### LLM provider decoupling
+
+The project was migrated from OpenRouter to the Google Gemini API without changing the conversation business logic.
+
+The provider-specific implementation is isolated from the application domain, allowing the underlying LLM provider to be replaced without rewriting the core conversation flow.
+
+This was intentionally implemented without introducing a large abstraction framework.
+
+See [`SEMANA_4.md`](./SEMANA_4.md) for the full reasoning.
+
+### Idempotent document processing
+
+Document processing is designed to be idempotent.
+
+Retrying the same Celery task does not create duplicate document chunks.
+
+This issue was identified and fixed before production deployment rather than after encountering a production incident.
+
+See [`SEMANA_5.md`](./SEMANA_5.md).
+
+### Critical architectural review
+
+An external architectural review was analyzed rather than applied blindly.
+
+Of the 10 recommendations:
+
+- 4 were accepted
+- 4 were rejected with explicit reasoning and criteria for reconsideration
+- 2 were partially accepted
+
+The objective was to distinguish between genuinely useful architectural improvements and unnecessary complexity for the current scale of the project.
+
+See [`SEMANA_5.md`](./SEMANA_5.md) for the complete reasoning.
+
+### RAG with explicit safeguards
+
+The RAG pipeline does not blindly inject the closest retrieved documents into the prompt.
+
+It includes:
+
+- A configurable relevance threshold
+- A per-conversation RAG toggle
+- File size limits
+- Tenant/assistant-level document isolation
+
+These safeguards were introduced after identifying specific failure modes rather than as a generic feature checklist.
 
 ---
 
-## Stack
+## Architecture
 
-- **FastAPI** (async) + **SQLAlchemy 2.0** (`AsyncSession`, `asyncpg`)
-- **PostgreSQL with `pgvector`** — relational persistence and vector search in the same database
-- **Redis** — JWT token blacklist, rate limiter storage, and Celery broker
-- **Celery** — background document processing with retries and exponential backoff
-- **Alembic** — database migrations
-- **structlog** — structured JSON logging, with `request_id` correlated per request via `contextvars`
-- **Google Gemini API** (`google-genai` async SDK) — chat (`gemini-3-flash-preview`) and embeddings (`gemini-embedding-001`)
-- **pypdf** — PDF text extraction
-- **slowapi** — rate limiting per user/IP
-- **pytest + pytest-asyncio** — integration testing against a real database, isolated per transaction
-- **GitHub Actions** — CI with Postgres (`pgvector/pgvector:pg15`) and Redis as service containers
-- **Docker / Docker Compose** — local development environment
-- **Railway** — production deployment
-
-## Architecture at a glance
+### High-level RAG flow
 
 ```mermaid
 flowchart TD
     A[User sends message] --> B{conversation.use_rag?}
-    B -->|false| F[Only history + system_prompt]
-    B -->|true| C[Embed query]
-    C --> D[Search chunks via cosine similarity]
-    D --> E{Any chunk within threshold?}
-    E -->|no| F
-    E -->|yes| G[Append chunks to system_prompt]
-    F --> H[Chat with LLM]
-    G --> H
-    H --> I[Response to user]
 
-Documents are uploaded, processed in the background (extraction → chunking → embeddings), and become available for any conversation belonging to the same assistant. The full breakdown, including diagrams for each stage, is in SEMANA_3.md and SEMANA_4.md.
+    B -->|false| F[Conversation history + system prompt]
+
+    B -->|true| C[Generate query embedding]
+    C --> D[Vector similarity search]
+    D --> E{Relevant chunks found?}
+
+    E -->|no| F
+    E -->|yes| G[Add retrieved chunks to prompt]
+
+    F --> H[Send request to LLM]
+    G --> H
+
+    H --> I[Return response]
+```
+Documents are uploaded and processed asynchronously:
+
+```text
+Upload
+  ↓
+Document validation
+  ↓
+Text extraction
+  ↓
+Chunking
+  ↓
+Embedding generation
+  ↓
+Vector storage
+  ↓
+Available for RAG
+```
+
+The complete implementation and development decisions are documented in `SEMANA_3.md` and `SEMANA_4.md`.
+
+## Tech Stack
+
+### Backend
+*   **FastAPI** — async REST API
+*   **SQLAlchemy 2.0** — async ORM
+*   **Pydantic** — request/response validation
+*   **PostgreSQL** — relational data storage
+*   **pgvector** — vector similarity search
+*   **Alembic** — database migrations
+
+### AI / LLM
+*   **Google Gemini API** via `google-genai`
+    *   `gemini-3-flash-preview` — conversational responses
+    *   `gemini-embedding-001` — document and query embeddings
+*   RAG pipeline with vector similarity search
+
+### Background Processing
+*   **Celery** — asynchronous document processing
+*   **Redis** — Celery broker, JWT blacklist, and rate limiter storage
+
+### Infrastructure
+*   **Docker**
+*   **Docker Compose**
+*   **Railway**
+
+### Observability / Security
+*   **structlog** — structured JSON logging
+*   Request correlation through `contextvars`
+*   JWT authentication
+*   Token blacklist
+*   Rate limiting with `slowapi`
+
+### Testing / CI
+*   **pytest**
+*   **pytest-asyncio**
+*   Integration tests against real PostgreSQL + pgvector
+*   **GitHub Actions**
+    *   PostgreSQL and Redis service containers
+    *   Coverage threshold of 70%
+
+### Document Processing
+*   **pypdf** — PDF text extraction
+
+---
 
 ## Project Structure
 
-```
+```text
 shion-AI/
 ├── src/app/
-│   ├── api/            # routers: auth, assistants, conversations, documents
-│   ├── core/           # config, security, dependencies, rate_limit, celery_app, gemini_client, logging, exceptions
-│   ├── db/              # SQLAlchemy async session
-│   ├── models/          # User, Assistant, Conversation, Message, Document, DocumentChunk
-│   ├── schemas/         # input/output Pydantic schemas
-│   ├── services/        # business logic, domain-driven
-│   │   ├── auth_service.py
-│   │   ├── assistant_service.py
-│   │   ├── conversation_service.py
-│   │   ├── document_service.py       # CRUD and orchestration
-│   │   ├── document_processing.py    # extraction & chunking (pure functions)
-│   │   ├── llm_service.py            # chat
-│   │   └── embedding_service.py      # embeddings
-│   ├── tasks/           # Celery tasks
-│   └── tests/           # async test suite
-├── alembic/              # migrations
-├── scripts/entrypoint.sh # waits for Postgres, runs migrations, starts uvicorn
+│   ├── api/            # API routers
+│   ├── core/           # Configuration, security, infrastructure
+│   ├── db/             # Database configuration and sessions
+│   ├── models/         # SQLAlchemy models
+│   ├── schemas/        # Pydantic schemas
+│   ├── services/       # Domain and business logic
+│   ├── tasks/          # Celery background tasks
+│   └── tests/          # Async test suite
+├── alembic/            # Database migrations
+├── scripts/            # Container entrypoint
 ├── docker-compose.yml
 ├── Dockerfile
 └── pyproject.toml
 ```
 
-## Endpoints
-
-| Method | Path | Rate limit | Description |
-|---|---|---|---|
-| POST | `/auth/register` | 5/hour (IP) | User registration |
-| POST | `/auth/login` | 5/minute (IP) | Login, returns access + refresh token |
-| POST | `/auth/refresh` | — | Refreshes the access token |
-| POST | `/auth/logout` | — | Invalidates the token (Redis blacklist) |
-| POST | `/assistants` | — | Creates an assistant |
-| GET | `/assistants` | — | Lists assistants for the authenticated user |
-| GET / PATCH / DELETE | `/assistants/{id}` | — | Details, partial update, and deletion (soft delete) |
-| POST | `/assistants/{id}/conversations` | — | Creates a conversation (`use_rag` optional, default `true`) |
-| GET | `/assistants/{id}/conversations` | — | Lists conversations for an assistant (paginated) |
-| PATCH | `/assistants/{id}/conversations/{id}` | — | Toggles `use_rag` for an existing conversation |
-| POST | `/assistants/{id}/conversations/{id}/messages` | 10/minute (user) | Sends a message; uses RAG only if enabled for the conversation and relevant context is found |
-| GET | `/assistants/{id}/conversations/{id}/messages` | — | Conversation history (paginated) |
-| POST | `/assistants/{id}/documents` | — | Uploads a document (`.pdf`, `.txt`, max size configurable), processed in the background |
-| GET | `/assistants/{id}/documents` | — | Lists documents for an assistant (paginated) |
-| GET | `/assistants/{id}/documents/{id}` | — | Document status (`pending` / `processing` / `ready` / `failed`) |
-| GET | `/assistants/{id}/documents/{id}/file` | — | Downloads the original uploaded file |
-| DELETE | `/assistants/{id}/documents/{id}` | — | Deletes a document, its chunks, and the original file |
-
-Complete interactive documentation available at `/docs`.
+The application logic is organized primarily around domain services rather than putting business logic directly inside API routers.
 
 ---
 
-## Installation and Local Development
+## Getting Started
 
-### Prerequisites
+### Requirements
+* Docker and Docker Compose
+* Python 3.12+ if running the API outside Docker
+* A Google AI Studio API key for `GEMINI_API_KEY`
 
-- Docker and Docker Compose
-- Python 3.12+ (only if running the API outside of Docker)
-- A Google AI Studio API key (free, no credit card required) for `GEMINI_API_KEY`
-
-### 1. Clone the repo and create the `.env` file
-
+### 1. Clone the Repository
 ```bash
-git clone [https://github.com/thomacev/shion-AI.git](https://github.com/thomacev/shion-AI.git)
+git clone https://github.com/thomacev/shion-AI.git
 cd shion-AI
+
 ```
 
-The repo does not include an .env.example, so create an .env file in the root directory:
+### 2. Configure Environment Variables
+
+Copy the example environment file:
 
 ```bash
-# --- Database (Development) ---
-POSTGRES_USER=shion_agent
-POSTGRES_PASSWORD=changeme
-POSTGRES_DB=shion_ai_db
-DATABASE_URL=postgresql+asyncpg://shion_agent:changeme@localhost:5432/shion_ai_db
+cp .env.example .env
 
-# --- Database (Testing) ---
-POSTGRES_USER_TEST=shion_test
-POSTGRES_PASSWORD_TEST=changeme_test
-POSTGRES_DB_TEST=shion_test_db
-DATABASE_TEST_URL=postgresql+asyncpg://shion_test:changeme_test@localhost:5432/shion_test_db
-
-# --- JWT ---
-SECRET_KEY=reemplazar-por-una-clave-larga-y-aleatoria
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-REFRESH_TOKEN_EXPIRE_DAYS=14
-
-# --- CORS ---
-ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:8000"]
-
-# --- App ---
-APP_NAME=shion-AI
-DEBUG=true
-API_V1_STR=/api/v1
-
-# --- LLM (Google Gemini) ---
-GEMINI_API_KEY=tu-key-de-google-ai-studio
-MODEL_NAME=gemini-3-flash-preview
-LLM_MAX_TOKENS=2048
-LLM_TEMPERATURE=0.7
-EMBEDDING_MODEL=gemini-embedding-001
-EMBEDDING_DIM=1536
-
-# --- RAG ---
-RAG_MAX_DISTANCE=0.5
-MAX_DOCUMENT_SIZE_MB=10
-
-# --- Redis ---
-REDIS_URL=redis://localhost:6379
-REDIS_PASSWORD=
-RATE_LIMIT_ENABLED=false
-CACHE_TTL_DEFAULT=300
-
-# --- Celery ---
-CELERY_BROKER_URL=redis://localhost:6379/1
 ```
 
-> `GEMINI_API_KEY` The GEMINI_API_KEY can be obtained for free from Google AI Studio without a credit card — the free tier is more than enough for development (1500 requests/day).
+Configure the required values, including the Gemini API key and database/Redis settings.
 
-### 2. Run everything with Docker Compose
+### 3. Start the Application
 
 ```bash
 docker compose up -d --build
+
 ```
 
-This spins up Postgres (using the pgvector/pgvector:pg15 image), Redis, the API, and the Celery worker. Without the worker running, documents will remain in status=pending forever — it is treated as just another service in the docker-compose.yml, not an afterthought.
+This starts:
 
-The API container waits for Postgres to be ready, automatically runs Alembic migrations, and starts uvicorn. The API will be available at http://localhost:8000, and the docs at http://localhost:8000/docs.
+* PostgreSQL with pgvector
+* Redis
+* FastAPI
+* Celery worker
 
-### 3. Alternative: Infrastructure in Docker, local API
+Database migrations are applied automatically by the API container.
 
-```bash
-docker compose up -d db redis
+The API will be available at:
 
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+* `http://localhost:8000`
 
-alembic upgrade head
-python main.py
-```
+Interactive API documentation:
 
-In a separate terminal, to enable document processing:
-```bash
-celery -A app.core.celery_app worker --loglevel=info
-```
+* `http://localhost:8000/docs`
 
-Note: DATABASE_URL, REDIS_URL, and CELERY_BROKER_URL must point to localhost in this mode, not to the service names defined in docker-compose.yml.
-
-## Database Access
-
-With the containers running, access the Postgres container (not the API container):
-
-```bash
-docker ps   # verify the exact name of the database container
-docker exec -it -e PGPASSWORD=changeme shionaiassistant-db psql -U shion_agent -d shion_ai_db
-```
-
-```sql
-\dt              -- list tables
-\d documents      -- view table structure
-\q               -- quit
-```
+---
 
 ## Testing
 
-Tests run against a real Postgres database (not SQLite) with pgvector enabled, isolating each test in its own transaction with automatic rollbacks. The LLM and embeddings are mocked; document processing is tested in separate layers (task dispatching vs. actual processing bypassing Celery). The test suite never requires a running Celery worker, nor does it hit the real Gemini API:
+The test suite uses a real PostgreSQL database with pgvector rather than SQLite.
+Database tests are isolated through transactions with automatic rollback.
+External LLM and embedding calls are mocked, while document processing is tested independently from the Celery execution layer.
+The test suite therefore does not require a running Celery worker or access to the real Gemini API.
 
 ```bash
 docker compose up -d db redis
 pytest --cov=app --cov-report=term-missing
+
 ```
 
-## CI
+---
 
-Every push triggers GitHub Actions: Postgres (pgvector/pgvector:pg15) and Redis are spun up as service containers, migrations are executed, and the full test suite runs with a 70% coverage threshold. See .github/workflows/ci.yml.
+## Continuous Integration
+
+Every push runs the GitHub Actions CI pipeline.
+The pipeline starts PostgreSQL with pgvector and Redis as service containers, applies database migrations, and executes the complete test suite.
+A minimum coverage threshold of 70% is enforced.
+
+See: `.github/workflows/ci.yml`
+
+---
 
 ## Deployment
 
-Deployed on Railway. In addition to the environment variables listed above, the production environment requires:
+The application is deployed on Railway.
+The production environment consists of:
 
-A separate service running the Celery worker (using the same command as local: celery -A app.core.celery_app worker --loglevel=info). Without this, documents will never transition out of pending.
+* FastAPI application
+* PostgreSQL
+* Redis
+* Dedicated Celery worker
 
-DATABASE_URL, REDIS_URL, and CELERY_BROKER_URL must point to the managed services provided by Railway (Postgres and Redis), not localhost.
+The Celery worker is required for asynchronous document processing.
+Production configuration is managed through environment variables rather than committed configuration files.
 
-DEBUG=false.
+---
 
 ## Known Limitations
 
-No summarized conversation persistence: The chat history is strictly truncated to the last 20 messages; there is currently no long-term memory mechanism (like periodic summarization).
+### Conversation Memory
 
-Scanned PDFs: Text extraction (pypdf) does not support scanned PDFs lacking a selectable text layer. These are processed with empty or near-empty content without throwing explicit errors. Evaluated using pymupdf4llm for OCR support, but discarded it for now due to its AGPL license and misalignment with the current use case. Details in SEMANA_4.md.
+Conversation history is currently limited to the latest 20 messages.
+There is no long-term summarized memory mechanism yet.
 
-RAG Calibration: The relevance threshold (RAG_MAX_DISTANCE) is a baseline starting value and has not yet been calibrated against real-world production usage.
+### Scanned PDFs
 
-No UI: The project is tested via /docs or direct HTTP clients by design. The goal is to demonstrate backend proficiency, not frontend development.
+PDF extraction currently relies on `pypdf`.
+Scanned PDFs without a selectable text layer are therefore not handled through OCR. `pymupdf4llm` was evaluated as a possible alternative, but was not adopted due to its AGPL license and the current scope of the project.
+See `SEMANA_4.md` for the reasoning.
+
+### RAG Relevance Threshold
+
+`RAG_MAX_DISTANCE` is currently an initial threshold rather than a value calibrated against a production evaluation dataset.
+A future improvement would be to build an evaluation dataset and tune the retrieval threshold against measurable retrieval quality.
+
+### No Frontend
+
+There is currently no frontend application.
+The system is intentionally exposed through the REST API and interactive Swagger documentation because the primary goal of the project is backend engineering rather than frontend development.
+
+---
+
+## Documentation
+
+The development process is documented chronologically:
+
+| Document | Focus |
+| --- | --- |
+| `SEMANA_1.md` | Project foundation, authentication, assistants, conversations, testing and CI |
+| `SEMANA_2.md` | LLM integration, retries, error handling and rate limiting |
+| `SEMANA_3.md` | Document ingestion, chunking, embeddings and vector search |
+| `SEMANA_4.md` | Celery, background processing and Gemini migration |
+| `SEMANA_5.md` | Architectural review, resilience, safeguards and production deployment |
+| `CONCEPTOS_IA.md` | AI concepts learned while building the system |
+
+---
+
+## Project Goals
+
+`shion-AI` is primarily a learning and portfolio project focused on combining backend engineering with practical Generative AI systems.
+The main goal is not to hide the complexity behind an AI framework, but to understand and implement the underlying components:
+
+```mermaid
+flowchart TD
+    A["Backend API"] --> B["Authentication & Authorization"]
+    B --> C["Business Logic"]
+    C --> D["Async Processing"]
+    D --> E["LLM Integration"]
+    E --> F["Embeddings"]
+    F --> G["Vector Search"]
+    G --> H["RAG"]
+    H --> I["Production Deployment"]
+```
+
+The project will continue evolving as new requirements, architectural problems, and AI engineering concepts are explored.
