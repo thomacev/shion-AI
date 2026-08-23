@@ -1,31 +1,41 @@
+# =========================
+# BACKEND (Python / FastAPI)
+# =========================
+
 # Entornos virtuales
 venv/
 .env/
 .venv/
 env/
-
 ENV/
+
 # Archivos de entorno y configuración local
 *.env
 .env
 *.env.ci
 secrets.json
 *.local
+
+# Archivos compilados de Python
 *.pyc
 *.pyo
 *.pyd
 __pycache__/
+
+# Bases de datos locales
 *.sqlite3
 *.db
 instance/
 
-# Archivos de logs
-*.log
-logs/
-*.out
-*.err
+# Archivos de pruebas y cobertura
+.coverage
+htmlcov/
+.pytest_cache/
+.cache/
+nosetests.xml
+coverage.xml
 
-# Archivos de compilación y cache
+# Compilación y empaquetado de Python
 *.egg-info/
 .eggs/
 *.egg
@@ -34,32 +44,61 @@ dist/
 *.manifest
 *.spec
 
+# Logs y dependencias de Python
+*.log
+logs/
+*.out
+*.err
+pip-log.txt
+pip-delete-this-directory.txt
+
+
+# =========================
+# FRONTEND (React / Vite / TS / Tailwind)
+# =========================
+
+# Dependencias de Node.js (¡CRÍTICO!)
+node_modules/
+.pnp
+.pnp.js
+
+# Directorio de construcción (Vite genera 'dist' por defecto)
+/dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Logs de NPM / Yarn / Pnpm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Archivos de entorno locales del frontend
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Archivos de cache de Vite/Eslint
+.eslintcache
+.vite/
+
+
+# =========================
+# SISTEMA, IDEs Y OTROS
+# =========================
+
 # Configuración de IDEs y editores
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Archivos de sistema
+# Archivos de sistema operativo
 .DS_Store
-iThumbs.db
+Thumbs.db
 
-# Archivos de pruebas
-.coverage
-htmlcov/
-.pytest_cache/
-.cache/
-nosetests.xml
-coverage.xml
-
-# Archivos de dependencias
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Archivos de Docker
+# Archivos temporales
 *.pid
 *.seed
 *.bak
-
-# Archivos de seguridad
-secrets.json

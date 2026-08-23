@@ -11,7 +11,7 @@ from app.core.security import verify_token
 from app.db.session import AsyncSessionLocal
 from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login",auto_error=False)
 
 
 async def get_db():
@@ -27,9 +27,16 @@ async def get_db():
 
 async def get_current_user(
     request: Request,
-    token: str = Depends(oauth2_scheme),
+    token: str | None = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+
+    if not token:
+        token = request.cookies.get("access_token")
+
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    
     payload = await verify_token(token, "access")
 
     if payload is None:
@@ -71,6 +78,7 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
         )
+    request.state.access_token = token
     request.state.user_id = str(user.id)
     return {
         "id": user.id,

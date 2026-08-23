@@ -15,6 +15,11 @@ def get_identifier(request: Request) -> str:
     user_id = getattr(request.state, "user_id", None)
     if user_id:
         return f"user:{user_id}"
+    # Detrás del proxy de Vercel, request.client.host es siempre la IP
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
     return get_remote_address(request)
 
 
@@ -24,3 +29,4 @@ limiter = Limiter(
     enabled=settings.RATE_LIMIT_ENABLED,
     strategy="fixed-window",
 )
+
