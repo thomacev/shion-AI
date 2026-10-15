@@ -1,6 +1,4 @@
 # app/core/exception_handlers.py
-from os import sync
-
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
@@ -13,11 +11,21 @@ from app.core.exceptions import (
     ResourceNotFoundError,
     LLMServiceError,
     DocumentTooLargeError,
+    ServiceUnavailableError,
+    ResourceBusyError,
 )
 
 
 def setup_exception_handlers(app):
     """Register all exception handlers."""
+
+    @app.exception_handler(ServiceUnavailableError)
+    async def unavailable_handler(request: Request, exc: ServiceUnavailableError):
+        return JSONResponse(status_code=503, content={"detail": exc.message})
+
+    @app.exception_handler(ResourceBusyError)
+    async def busy_handler(request: Request, exc: ResourceBusyError):
+        return JSONResponse(status_code=409, content={"detail": exc.message})
 
     @app.exception_handler(InvalidCredentialsError)
     async def invalid_credentials_handler(

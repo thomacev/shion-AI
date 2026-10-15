@@ -46,6 +46,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       DATABASE_TEST_URL: postgresql+asyncpg://${POSTGRES_USER_TEST}:${POSTGRES_PASSWORD_TEST}@db:5432/${POSTGRES_DB_TEST}
       REDIS_URL: redis://redis:6379
+      CELERY_BROKER_URL: redis://redis:6379/1
     depends_on:
       db:
         condition: service_healthy
@@ -84,6 +85,26 @@ services:
       - ./src:/app/src
     networks:
       - app-network 
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.core.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      CELERY_BROKER_URL: redis://redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    networks:
+      - app-network
 
 volumes:
   postgres_data:

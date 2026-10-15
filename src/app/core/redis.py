@@ -2,11 +2,12 @@
 from redis.asyncio import Redis
 from app.core.config import settings
 from app.core.logger import logger
+from app.core.exceptions import ServiceUnavailableError
 
 redis_client: Redis | None = None
 
 
-async def get_redis_client() -> Redis | None:
+async def get_redis_client() -> Redis:
     global redis_client
 
     if redis_client is None:
@@ -21,7 +22,10 @@ async def get_redis_client() -> Redis | None:
             logger.info("Redis client connected successfully")
         except Exception as e:
             logger.error("Failed to connect to Redis", extra={"error": str(e)})
+            if redis_client is not None:
+                await redis_client.aclose()
             redis_client = None
+            raise ServiceUnavailableError("Authentication service temporarily unavailable") from e
 
     return redis_client
 

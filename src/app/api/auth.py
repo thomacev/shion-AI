@@ -1,13 +1,12 @@
 # app/api/auth.py
-from fastapi import APIRouter, Depends, status, Body, Request, HTTPException
+from fastapi import APIRouter, Depends, status, Body, Request, HTTPException, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.user_schema import UserRegisterSchema, UserResponseSchema
-from app.core.dependencies import get_db, get_current_user, oauth2_scheme
+from app.core.dependencies import get_db, get_current_user
 from app.services import auth_service
 from app.core.rate_limit import limiter
-from fastapi import APIRouter, Depends, Response, Request, Body, status
 from app.core.config import settings
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -64,14 +63,14 @@ async def refresh(
     if not token:
         raise HTTPException(status_code=401, detail="No refresh token provided")
 
-    new_access_token = await auth_service.refresh_access_token(token, db)
+    tokens = await auth_service.refresh_access_token(token, db)
 
     response.set_cookie(
-        key="access_token", value=new_access_token, httponly=True,
+        key="access_token", value=tokens["access_token"], httponly=True,
         secure=not settings.DEBUG, samesite="lax",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
-    return {"access_token": new_access_token}
+    return tokens
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(

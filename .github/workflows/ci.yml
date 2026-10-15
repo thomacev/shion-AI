@@ -36,6 +36,7 @@ jobs:
           --health-retries 5
 
     env:
+      TEST_ALLOW_SCHEMA_RESET: "1"
       # Database — asyncpg porque tu app corre 100% async
       DATABASE_URL: postgresql+asyncpg://shion_test:shion_test659@localhost:5432/shion_test_db
       DATABASE_TEST_URL: postgresql+asyncpg://shion_test:shion_test659@localhost:5432/shion_test_db
@@ -93,6 +94,9 @@ jobs:
 
       - name: Run migrations
         run: alembic upgrade head
+
+      - name: Static analysis
+        run: ruff check src/app
 
       - name: Run tests with coverage
         run: |

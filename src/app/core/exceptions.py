@@ -58,3 +58,15 @@ class LLMServiceError(DomainException):
 class DocumentTooLargeError(DomainException):
     """Raised when a document exceeds the maximum allowed size."""
     pass
+
+
+class ServiceUnavailableError(DomainException):
+    """A required infrastructure service is temporarily unavailable."""
+
+
+class ResourceBusyError(DomainException):
+    """Another request is already processing this resource."""
+
+
+class RetryableLLMServiceError(LLMServiceError):
+    """Temporary provider failure eligible for a bounded retry."""

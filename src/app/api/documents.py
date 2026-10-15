@@ -1,9 +1,12 @@
 from uuid import UUID
+import asyncio
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 
 from app.core.exceptions import ResourceNotFoundError
+from app.core.logger import logger
 
 from app.core.dependencies import get_db, get_current_user
 from app.schemas.document_schema import DocumentResponseSchema
@@ -24,24 +27,20 @@ async def upload_document(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_DOCUMENT_SIZE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds the maximum allowed size of {settings.MAX_DOCUMENT_SIZE_MB}MB",
-        )
-
-    content = await file.read()
+    content = await file.read(MAX_DOCUMENT_SIZE_BYTES + 1)
+    await file.close()
+    if len(content) > MAX_DOCUMENT_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail=f"File exceeds {settings.MAX_DOCUMENT_SIZE_MB}MB")
 
     document = await document_service.create_pending_document(
         assistant_id=assistant_id,
         user_id=current_user["id"],
-        filename=file.filename,
+        filename=file.filename or "",
         content=content,
         content_type=file.content_type,
         db=db,
     )
-    process_document_task.delay(str(document.id))
+    await _dispatch_document(document.id)
     return document
 
 @router.get("", response_model=list[DocumentResponseSchema])
@@ -86,5 +85,21 @@ async def download_document_file(
     return Response(
         content=document.original_content,
         media_type=document.content_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{document.filename}"'},
+        headers={"Content-Disposition": "attachment; filename*=UTF-8\'\'" + quote(document.filename, safe="")},
     )
+
+async def _dispatch_document(document_id: UUID) -> None:
+    try:
+        await asyncio.to_thread(process_document_task.delay, str(document_id))
+    except Exception:
+        # The durable pending row is recovered by the periodic scheduler.
+        logger.warning("Document queued for recovery after dispatch failure", document_id=str(document_id))
+
+
+@router.post("/{document_id}/retry", status_code=202, response_model=DocumentResponseSchema)
+async def retry_document(document_id: UUID, assistant_id: UUID,
+                         current_user: dict = Depends(get_current_user),
+                         db: AsyncSession = Depends(get_db)):
+    document = await document_service.retry_document(document_id, assistant_id, current_user["id"], db)
+    await _dispatch_document(document.id)
+    return document

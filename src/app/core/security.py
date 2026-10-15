@@ -1,11 +1,13 @@
-# app/core/security.py
-from passlib.context import CryptContext
-from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
+from uuid import UUID, uuid4
+
+from jose import jwt, JWTError
+from passlib.context import CryptContext
+from redis.exceptions import RedisError
+
 from app.core.config import settings
+from app.core.exceptions import ServiceUnavailableError
 from app.core.redis import get_redis_client
-import hashlib
-from app.core.logger import logger
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -18,60 +20,52 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+def _create_token(data: dict, token_type: str, lifetime: timedelta) -> str:
+    claims = {**data, "exp": datetime.now(timezone.utc) + lifetime,
+              "type": token_type, "jti": str(uuid4())}
+    return jwt.encode(claims, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
 def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    )
-    to_encode.update({"exp": expire, "type": "access"})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return _create_token(data, "access", timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
 
 def create_refresh_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(
-        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-    )
-    to_encode.update({"exp": expire, "type": "refresh"})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return _create_token(data, "refresh", timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
 
 
-def _hash_token(token: str) -> str:
-    """Hash the token for secure storage in Redis."""
-    return hashlib.sha256(token.encode()).hexdigest()
+async def create_login_session(user_id: str) -> str:
+    session_id = str(uuid4())
+    client = await get_redis_client()
+    try:
+        await client.setex(f"auth_session:{session_id}",
+                           settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400, user_id)
+    except RedisError as exc:
+        raise ServiceUnavailableError("Authentication service temporarily unavailable") from exc
+    return session_id
 
 
-async def is_token_blacklisted(token: str) -> bool:
-    """Check if token is in blacklist (logout)."""
-    redis_client = await get_redis_client()
-    if redis_client:
-        blacklist_key = f"token_blacklist:{_hash_token(token)}"
-        return await redis_client.exists(blacklist_key) > 0
-    return False
+async def revoke_login_session(session_id: str) -> None:
+    client = await get_redis_client()
+    try:
+        await client.delete(f"auth_session:{session_id}")
+    except RedisError as exc:
+        raise ServiceUnavailableError("Authentication service temporarily unavailable") from exc
 
 
 async def verify_token(token: str, expected_type: str = "access") -> dict | None:
     try:
-        if await is_token_blacklisted(token):
-            logger.warning("Token verification failed: token is blacklisted")
-            return None
-
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM],
+                             options={"require_exp": True, "require_sub": True})
         if payload.get("type") != expected_type:
-            logger.warning(
-                "Token verification failed: token type mismatch",
-                extra={
-                    "expected_type": expected_type,
-                    "got_type": payload.get("type"),
-                },
-            )
             return None
-        return payload
-    except JWTError as e:
-        logger.warning(
-            "Token verification failed: JWT decode error",
-            extra={"error": str(e)},
-        )
+        UUID(payload["sub"])
+        UUID(payload["sid"])
+    except (JWTError, KeyError, ValueError, TypeError, AttributeError):
         return None
+    client = await get_redis_client()
+    try:
+        owner = await client.get(f"auth_session:{payload['sid']}")
+    except RedisError as exc:
+        raise ServiceUnavailableError("Authentication service temporarily unavailable") from exc
+    return payload if owner == payload["sub"] else None

@@ -1,53 +1,91 @@
+from dataclasses import dataclass
 from io import BytesIO
 from pypdf import PdfReader
 
+from app.core.config import settings
+from app.core.exceptions import ValidationError, DocumentTooLargeError
 from app.core.logger import logger
 
 
-def extract_text(filename: str, content: bytes) -> str:
-    logger.info(
-        "Starting document text extraction",
-        extra={"filename": filename, "file_size_bytes": len(content)},
-    )
+@dataclass(frozen=True)
+class TextPage:
+    content: str
+    number: int | None
 
+
+@dataclass(frozen=True)
+class TextChunk:
+    content: str
+    page_start: int | None
+    page_end: int | None
+
+
+def validate_file(filename: str, content: bytes) -> None:
+    if not filename or len(filename) > 256 or any(ord(c) < 32 for c in filename):
+        raise ValidationError("Invalid document filename")
+    if not content:
+        raise ValidationError("Document is empty")
+    if len(content) > settings.MAX_DOCUMENT_SIZE_MB * 1024 * 1024:
+        raise DocumentTooLargeError("Document exceeds the upload size limit")
+    if filename.lower().endswith(".pdf"):
+        if not content.startswith(b"%PDF-"):
+            raise ValidationError("File is not a valid PDF")
+    elif filename.lower().endswith(".txt"):
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValidationError("Text documents must use UTF-8") from exc
+        if any(ord(c) < 32 and c not in "\n\r\t" for c in text):
+            raise ValidationError("Binary content is not supported")
+        if not text.strip():
+            raise ValidationError("Document contains no readable text")
+    else:
+        raise ValidationError("Only PDF and UTF-8 .txt documents are supported")
+
+
+def extract_pages(filename: str, content: bytes) -> list[TextPage]:
+    validate_file(filename, content)
+    pages = []
+    total = 0
     if filename.lower().endswith(".pdf"):
         try:
             reader = PdfReader(BytesIO(content))
-            num_pages = len(reader.pages)
-            text = "\n".join(page.extract_text() or "" for page in reader.pages)
-
-            if not text.strip():
-                logger.warning(
-                    "Extracted PDF text is empty",
-                    extra={"filename": filename, "total_pages": num_pages},
-                )
-
-            logger.info(
-                "PDF text extraction completed",
-                extra={
-                    "filename": filename,
-                    "total_pages": num_pages,
-                    "extracted_chars": len(text),
-                },
-            )
-            return text
-        except Exception as exc:
-            logger.error(
-                "PDF text extraction failed",
-                extra={"filename": filename, "error": str(exc)},
-                exc_info=True,
-            )
+            if reader.is_encrypted:
+                raise ValidationError("Encrypted PDFs are not supported")
+            if len(reader.pages) > settings.MAX_DOCUMENT_PAGES:
+                raise ValidationError("PDF exceeds the page limit")
+            for number, page in enumerate(reader.pages, 1):
+                text = page.extract_text() or ""
+                total += len(text)
+                if total > settings.MAX_EXTRACTED_CHARS:
+                    raise ValidationError("Document exceeds the extracted text limit")
+                pages.append(TextPage(text, number))
+        except ValidationError:
             raise
+        except Exception as exc:
+            raise ValidationError("PDF could not be read") from exc
+    else:
+        text = content.decode("utf-8")
+        if len(text) > settings.MAX_EXTRACTED_CHARS:
+            raise ValidationError("Document exceeds the extracted text limit")
+        pages = [TextPage(text, None)]
+    if not any(page.content.strip() for page in pages):
+        raise ValidationError("No readable text found; scanned PDFs require OCR")
+    return pages
 
-    text = content.decode("utf-8", errors="ignore")
-    logger.info(
-        "Text file decoding completed",
-        extra={"filename": filename, "extracted_chars": len(text)},
-    )
-    return text
+
+def extract_text(filename: str, content: bytes) -> str:
+    return "\n".join(page.content for page in extract_pages(filename, content))
+
+
+def chunk_pages(pages: list[TextPage]) -> list[TextChunk]:
+    return [TextChunk(text, page.number, page.number)
+            for page in pages for text in chunk_text(page.content)]
 
 
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[str]:
+    if chunk_size <= 0 or overlap < 0 or overlap >= chunk_size:
+        raise ValueError("Chunk overlap must be smaller than a positive chunk size")
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     chunks: list[str] = []
     current = ""

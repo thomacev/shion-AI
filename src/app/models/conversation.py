@@ -1,6 +1,6 @@
 import sqlalchemy as sa
 import sqlalchemy.orm as so
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy import Enum as SqlEnum
 import uuid
 from enum import Enum
@@ -34,6 +34,8 @@ class Conversation(Base):
         sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     use_rag: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
+    generation_token: so.Mapped[uuid.UUID | None] = so.mapped_column(UUID(as_uuid=True), nullable=True)
+    generation_expires_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
     assistant: so.Mapped["Assistant"] = so.relationship(
         "Assistant", back_populates="conversations"
     )
@@ -59,6 +61,7 @@ class Message(Base):
 
     # Guardás los tokens para poder calcular uso después
     tokens_used: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    sources: so.Mapped[list[dict]] = so.mapped_column(JSONB, default=list, server_default="[]")
 
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True),

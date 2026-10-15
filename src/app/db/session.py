@@ -24,3 +24,13 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 Base = declarative_base()
+
+async def check_embedding_schema():
+    from sqlalchemy import text
+    async with engine.connect() as conn:
+        dimension = await conn.scalar(text(
+            "SELECT format_type(atttypid, atttypmod) FROM pg_attribute "
+            "WHERE attrelid = to_regclass('document_chunks') AND attname = 'embedding' AND NOT attisdropped"
+        ))
+    if dimension != f"vector({settings.EMBEDDING_DIM})":
+        raise RuntimeError("Embedding schema mismatch; apply migrations and verify EMBEDDING_DIM")

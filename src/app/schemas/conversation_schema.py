@@ -1,7 +1,8 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, Field
 from app.models.conversation import MessageRole
+from app.core.config import settings
 
 
 # el usuario puede dar el titulo
@@ -26,6 +27,13 @@ class ConversationCreateSchema(BaseModel):
 class ConversationUpdateSchema(BaseModel):
     use_rag: bool | None = None
 
+    @field_validator("use_rag")
+    @classmethod
+    def reject_null_rag(cls, value):
+        if value is None:
+            raise ValueError("use_rag must be true or false")
+        return value
+
 class ConversationResponseSchema(BaseModel):
     id: UUID
     assistant_id: UUID
@@ -37,7 +45,7 @@ class ConversationResponseSchema(BaseModel):
 
 # el rol no lo elige el usuario, sino que lo cambia el frontend en todo caso
 class MessageCreateSchema(BaseModel):
-    content: str
+    content: str = Field(max_length=settings.MAX_MESSAGE_CHARS)
 
     @field_validator("content")
     @classmethod
@@ -50,12 +58,22 @@ class MessageCreateSchema(BaseModel):
         return value
 
 
+class SourceSchema(BaseModel):
+    source_id: str
+    document_id: UUID
+    filename: str
+    chunk_index: int
+    page_start: int | None = None
+    page_end: int | None = None
+
+
 class MessageResponseSchema(BaseModel):
     id: UUID
     conversation_id: UUID
     role: MessageRole
     content: str
     tokens_used: int | None
+    sources: list[SourceSchema] = Field(default_factory=list)
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

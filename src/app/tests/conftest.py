@@ -1,9 +1,10 @@
 import uuid
+import os
+import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.pool import NullPool
-from sqlalchemy import text
 import asyncpg
 from app.app import app
 from app.core.config import settings
@@ -32,8 +33,10 @@ async def _ensure_vector_extension():
         await conn.close()
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="session")
 async def setup_test_db():
+    if os.environ.get("TEST_ALLOW_SCHEMA_RESET") != "1":
+        pytest.fail("Set TEST_ALLOW_SCHEMA_RESET=1 only for a disposable DATABASE_TEST_URL")
     await _ensure_vector_extension()  
 
     async with test_engine.begin() as conn:
@@ -45,7 +48,7 @@ async def setup_test_db():
 
 
 @pytest_asyncio.fixture
-async def db_session():
+async def db_session(setup_test_db):
 
     connection = await test_engine.connect()
     trans = await connection.begin()
@@ -169,3 +172,12 @@ async def test_document(client, auth_headers, test_assistant, db_session):
         "error_message": document.error_message,
         "created_at": document.created_at.isoformat(),
     }
+
+@pytest.fixture(autouse=True)
+def block_unmocked_provider_requests():
+    with (
+        patch("google.genai.models.AsyncModels.generate_content", new=AsyncMock(side_effect=AssertionError("Unmocked Gemini generation"))),
+        patch("google.genai.models.AsyncModels.embed_content", new=AsyncMock(side_effect=AssertionError("Unmocked Gemini embedding"))),
+        patch("google.genai.models.AsyncModels.count_tokens", new=AsyncMock(side_effect=AssertionError("Unmocked Gemini token count"))),
+    ):
+        yield
