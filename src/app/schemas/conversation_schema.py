@@ -1,8 +1,10 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, field_validator, Field
-from app.models.conversation import MessageRole
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from app.core.config import settings
+from app.models.conversation import MessageRole
 
 
 # el usuario puede dar el titulo

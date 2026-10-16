@@ -2,7 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.celery_app import celery_app
@@ -11,7 +11,10 @@ from app.core.gemini_client import task_gemini_client
 from app.core.logger import logger
 from app.db.session import database_url
 from app.models.document import Document
-from app.services.document_service import run_document_processing, recoverable_document_ids
+from app.services.document_service import (
+    recoverable_document_ids,
+    run_document_processing,
+)
 
 
 @asynccontextmanager
@@ -53,6 +56,7 @@ def recover_documents_task() -> None:
     for document_id in asyncio.run(_recover_document_ids()):
         try:
             process_document_task.apply_async(args=[str(document_id)], retry=False)
-        except Exception:
-            logger.warning("Recovery dispatch unavailable", document_id=str(document_id))
+        except Exception as exc:  # noqa: BLE001 -- Leave pending work for the next recovery scan on any publication failure.
+            logger.warning("Recovery dispatch unavailable", document_id=str(document_id),
+                           error_type=type(exc).__name__)
             break

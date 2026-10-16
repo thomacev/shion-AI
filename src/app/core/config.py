@@ -1,6 +1,6 @@
 # app/core/config.py
 from functools import lru_cache
-from typing import Optional
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,11 +12,11 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     SECRET_KEY: str
 
-    POSTGRES_USER: Optional[str] = None
-    POSTGRES_PASSWORD: Optional[str] = None
-    POSTGRES_DB: Optional[str] = None
-    DATABASE_TEST_URL: Optional[str] = None
-    REDIS_PASSWORD: Optional[str] = None
+    POSTGRES_USER: str | None = None
+    POSTGRES_PASSWORD: str | None = None
+    POSTGRES_DB: str | None = None
+    DATABASE_TEST_URL: str | None = None
+    REDIS_PASSWORD: str | None = None
 
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

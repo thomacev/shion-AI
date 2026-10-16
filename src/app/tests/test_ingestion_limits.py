@@ -6,7 +6,13 @@ from pypdf import PdfWriter
 
 from app.core.config import settings
 from app.core.exceptions import ValidationError
-from app.services.document_processing import validate_file, extract_pages, chunk_text, chunk_pages, TextPage
+from app.services.document_processing import (
+    TextPage,
+    chunk_pages,
+    chunk_text,
+    extract_pages,
+    validate_file,
+)
 
 
 @pytest.mark.parametrize("filename, content", [("binary.txt", b"\xff"), ("binary.txt", b"\x00"),

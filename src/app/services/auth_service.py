@@ -1,24 +1,26 @@
 # app/services/auth_service.py
+from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import (
+    InsufficientPermissionsError,
+    InvalidCredentialsError,
+    UserAlreadyExistsError,
+)
+from app.core.logger import logger
+from app.core.security import (
+    create_access_token,
+    create_login_session,
+    create_refresh_token,
+    hash_password,
+    revoke_login_session,
+    verify_password,
+    verify_token,
+)
 from app.models.user import User
 from app.schemas.user_schema import UserRegisterSchema, UserResponseSchema
-from app.core.security import (
-    hash_password,
-    verify_password,
-    create_access_token,
-    create_refresh_token,
-    verify_token,
-    create_login_session,
-    revoke_login_session,
-)
-from app.core.exceptions import (
-    UserAlreadyExistsError,
-    InvalidCredentialsError,
-    InsufficientPermissionsError,
-)
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.core.logger import logger
-from uuid import UUID
 
 
 async def register_user(

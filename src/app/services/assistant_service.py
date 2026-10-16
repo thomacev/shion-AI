@@ -1,11 +1,13 @@
 from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.assistant import Assistant
-from app.schemas.assistant_schema import AssistantCreateSchema, AssistantUpdateSchema
 from app.core.exceptions import ResourceNotFoundError
 from app.core.logger import logger
+from app.models.assistant import Assistant
+from app.schemas.assistant_schema import AssistantCreateSchema, AssistantUpdateSchema
+
 
 async def create_assistant(
     user_id: UUID,

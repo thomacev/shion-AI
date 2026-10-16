@@ -1,15 +1,16 @@
+import uuid
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from sqlalchemy.dialects.postgresql import UUID
-import uuid
-from datetime import datetime, timezone
+
 from app.db.session import Base
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from app.models.user import User
     from app.models.conversation import Conversation
+    from app.models.user import User
 
 
 class Assistant(Base):
@@ -31,12 +32,12 @@ class Assistant(Base):
 
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        sa.DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     updated_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     user: so.Mapped["User"] = so.relationship("User", back_populates="assistants")

@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, timezone
-from uuid import UUID
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
+from uuid import UUID
 
 import pytest
 from sqlalchemy import select
@@ -9,7 +9,11 @@ from app.core.config import settings
 from app.core.exceptions import LLMServiceError, RetryableLLMServiceError
 from app.models.document import Document, DocumentChunk, DocumentStatus
 from app.services.document_processing import chunk_text
-from app.services.document_service import run_document_processing, search_relevant_chunks, recoverable_document_ids
+from app.services.document_service import (
+    recoverable_document_ids,
+    run_document_processing,
+    search_relevant_chunks,
+)
 
 
 async def make_document(db, assistant, content=b"content"):
@@ -52,6 +56,8 @@ async def test_incomplete_or_invalid_vectors_never_mark_ready(db_session, test_a
 @pytest.mark.parametrize("error, expected", [
     (LLMServiceError("invalid"), DocumentStatus.FAILED),
     (RetryableLLMServiceError("temporary"), DocumentStatus.PENDING),
+    (TimeoutError("deadline exceeded"), DocumentStatus.PENDING),
+    (RuntimeError("unexpected processing failure"), DocumentStatus.FAILED),
 ])
 async def test_processing_errors_have_explicit_status(db_session, test_assistant, error, expected):
     document = await make_document(db_session, test_assistant)
@@ -60,6 +66,8 @@ async def test_processing_errors_have_explicit_status(db_session, test_assistant
     await db_session.refresh(document)
     assert document.status == expected
     assert document.processing_token is None
+    assert document.lease_expires_at is None
+    assert (document.next_attempt_at is not None) == (expected == DocumentStatus.PENDING)
     assert document.error_message
 
 
@@ -73,7 +81,7 @@ async def test_invalid_pdf_is_failed(db_session, test_assistant):
 async def test_recovery_finds_expired_work_and_caps_attempts(db_session, test_assistant):
     document = await make_document(db_session, test_assistant)
     document.status = DocumentStatus.PROCESSING
-    document.lease_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    document.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
     await db_session.commit()
     assert document.id in await recoverable_document_ids(db_session)
     document.attempts = settings.DOCUMENT_MAX_ATTEMPTS

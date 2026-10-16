@@ -1,15 +1,23 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator  # ← nuevo
+
+from app.api import (  # Importar el enrutador de documentos
+    assistants,
+    auth,
+    conversations,
+    documents,
+)
 from app.core.config import settings
 from app.core.exceptions_handlers import setup_exception_handlers
-from prometheus_fastapi_instrumentator import Instrumentator  # ← nuevo
-from app.api import auth, assistants, conversations,documents  # Importar el enrutador de documentos
-from app.core.middleware import RequestContextMiddleware, UploadBodyLimitMiddleware
 from app.core.gemini_client import close_gemini_client
+from app.core.middleware import RequestContextMiddleware, UploadBodyLimitMiddleware
+from app.core.rate_limit import limiter
 from app.core.redis import close_redis
 from app.db.session import check_embedding_schema, engine
-from app.core.rate_limit import limiter
+
 
 @asynccontextmanager
 async def lifespan(app):

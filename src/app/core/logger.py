@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import structlog
+
 from app.core.config import settings
 
 LOG_DIR = Path("logs")

@@ -4,8 +4,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from google.genai.errors import APIError
 
-from app.core.config import settings, Settings
-from app.core.exceptions import LLMServiceError, RetryableLLMServiceError, ValidationError
+from app.core.config import Settings, settings
+from app.core.exceptions import (
+    LLMServiceError,
+    RetryableLLMServiceError,
+    ValidationError,
+)
 from app.core.gemini_client import provider_request
 from app.services.embedding_service import embed, validate_embeddings
 from app.services.llm_service import chat
@@ -31,17 +35,18 @@ async def test_missing_usage_is_unknown_not_a_crash():
 
 @pytest.mark.parametrize("text", [None, "", "   "])
 async def test_empty_generation_is_a_domain_error(text):
-    with patch("app.services.llm_service.get_gemini_client", return_value=client_with_response(SimpleNamespace(text=text))):
-        with pytest.raises(LLMServiceError):
-            await chat("instructions", [{"role": "user", "content": "question"}])
+    with (
+        patch("app.services.llm_service.get_gemini_client", return_value=client_with_response(SimpleNamespace(text=text))),
+        pytest.raises(LLMServiceError),
+    ):
+        await chat("instructions", [{"role": "user", "content": "question"}])
 
 
 async def test_prompt_budget_prevents_generation():
     fake = client_with_response(SimpleNamespace(text="answer"))
     fake.aio.models.count_tokens.return_value.total_tokens = settings.MAX_PROMPT_TOKENS + 1
-    with patch("app.services.llm_service.get_gemini_client", return_value=fake):
-        with pytest.raises(ValidationError):
-            await chat("instructions", [{"role": "user", "content": "question"}])
+    with patch("app.services.llm_service.get_gemini_client", return_value=fake), pytest.raises(ValidationError):
+        await chat("instructions", [{"role": "user", "content": "question"}])
     fake.aio.models.generate_content.assert_not_awaited()
 
 
@@ -49,9 +54,8 @@ async def test_prompt_budget_prevents_generation():
                                                    (429, 2, RetryableLLMServiceError), (503, 2, RetryableLLMServiceError)])
 async def test_only_transient_errors_retry(code, calls, error_type):
     operation = AsyncMock(side_effect=APIError(code, {"error": {"message": "test", "code": code}}))
-    with patch("app.core.gemini_client.asyncio.sleep", new=AsyncMock()):
-        with pytest.raises(error_type):
-            await provider_request(operation)
+    with patch("app.core.gemini_client.asyncio.sleep", new=AsyncMock()), pytest.raises(error_type):
+        await provider_request(operation)
     assert operation.await_count == calls
 
 

@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from jose import jwt, JWTError
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 from redis.exceptions import RedisError
 
@@ -21,7 +21,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def _create_token(data: dict, token_type: str, lifetime: timedelta) -> str:
-    claims = {**data, "exp": datetime.now(timezone.utc) + lifetime,
+    claims = {**data, "exp": datetime.now(UTC) + lifetime,
               "type": token_type, "jti": str(uuid4())}
     return jwt.encode(claims, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 

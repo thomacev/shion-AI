@@ -1,19 +1,19 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, status, Request, Query
 
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_current_user, get_db
+from app.core.rate_limit import limiter
 from app.schemas.conversation_schema import (
+    ChatResponseSchema,
     ConversationCreateSchema,
     ConversationResponseSchema,
+    ConversationUpdateSchema,
     MessageCreateSchema,
     MessageResponseSchema,
-    ChatResponseSchema,
-    ConversationUpdateSchema
 )
 from app.services import conversation_service
-from app.core.rate_limit import limiter
 
 router = APIRouter(
     prefix="/assistants/{assistant_id}/conversations", tags=["conversations"]

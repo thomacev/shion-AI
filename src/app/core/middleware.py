@@ -1,9 +1,11 @@
 # app/core/middleware.py
 import time
 import uuid
+
 import structlog
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+
 from app.core.logger import logger
 
 
@@ -43,6 +45,7 @@ class UploadBodyLimitMiddleware:
     async def __call__(self, scope, receive, send):
         from starlette.formparsers import MultiPartException
         from starlette.responses import JSONResponse
+
         from app.core.config import settings
 
         if scope["type"] != "http" or scope["method"] != "POST" or "/documents" not in scope["path"]:

@@ -1,5 +1,5 @@
-from uuid import UUID
 from unittest.mock import AsyncMock, patch
+from uuid import UUID
 
 from app.core.exceptions import ServiceUnavailableError
 from app.models.user import User

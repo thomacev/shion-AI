@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from io import BytesIO
+
 from pypdf import PdfReader
 
 from app.core.config import settings
-from app.core.exceptions import ValidationError, DocumentTooLargeError
+from app.core.exceptions import DocumentTooLargeError, ValidationError
 from app.core.logger import logger
 
 

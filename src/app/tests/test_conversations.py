@@ -1,9 +1,11 @@
 import uuid
-import pytest_asyncio
 from unittest.mock import AsyncMock, patch
+from uuid import UUID
+
+import pytest_asyncio
+
 from app.core.exceptions import LLMServiceError
 from app.models.document import DocumentChunk
-from uuid import UUID
 
 
 @pytest_asyncio.fixture

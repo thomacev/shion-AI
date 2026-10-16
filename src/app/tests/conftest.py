@@ -1,20 +1,24 @@
-import uuid
 import os
+import uuid
+from unittest.mock import AsyncMock, patch
+from uuid import UUID
+
+import asyncpg
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
-import asyncpg
+
 from app.app import app
 from app.core.config import settings
 from app.core.dependencies import get_db
-from app.db.session import Base
 from app.core.redis import close_redis
-
-from uuid import UUID
-from unittest.mock import AsyncMock, patch
-from app.services.document_service import create_pending_document, run_document_processing
+from app.db.session import Base
+from app.services.document_service import (
+    create_pending_document,
+    run_document_processing,
+)
 
 # Engine dedicado a los tests, apuntando a la DB de test
 test_engine = create_async_engine(

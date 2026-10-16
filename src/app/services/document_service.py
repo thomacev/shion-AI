@@ -1,17 +1,23 @@
-from uuid import UUID, uuid4
-from datetime import timedelta
 import asyncio
-from sqlalchemy import select, delete, update, or_, and_, func
+from datetime import timedelta
+from uuid import UUID, uuid4
+
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.document import Document, DocumentChunk, DocumentStatus
-from app.services.document_processing import extract_pages, chunk_pages, validate_file
-from app.services.assistant_service import _get_assistant_for_user
-from app.services.embedding_service import embed, validate_embeddings
 from app.core.config import settings
-from app.core.exceptions import (ResourceNotFoundError, LLMServiceError,
-    RetryableLLMServiceError, ValidationError, ResourceBusyError)
+from app.core.exceptions import (
+    LLMServiceError,
+    ResourceBusyError,
+    ResourceNotFoundError,
+    RetryableLLMServiceError,
+    ValidationError,
+)
 from app.core.logger import logger
+from app.models.document import Document, DocumentChunk, DocumentStatus
+from app.services.assistant_service import _get_assistant_for_user
+from app.services.document_processing import chunk_pages, extract_pages, validate_file
+from app.services.embedding_service import embed, validate_embeddings
 
 MAX_DOCUMENT_SIZE_BYTES = settings.MAX_DOCUMENT_SIZE_MB * 1024 * 1024
 
@@ -100,7 +106,7 @@ async def run_document_processing(document_id: UUID, filename: str, content: byt
             document.error_message = None
             await db.commit()
             logger.info("Document processing completed", document_id=str(document_id), chunks=len(chunks))
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- Persist terminal failures and clear the claim even for unexpected processing errors.
         await db.rollback()
         retry = isinstance(exc, (RetryableLLMServiceError, TimeoutError)) and attempt < settings.DOCUMENT_MAX_ATTEMPTS
         message = exc.message if isinstance(exc, (LLMServiceError, ValidationError)) else "Document processing failed"

@@ -2,17 +2,18 @@
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
+
 from app.core.exceptions import (
-    DomainException,
-    InvalidCredentialsError,
-    UserAlreadyExistsError,
-    InsufficientPermissionsError,
-    ValidationError,
-    ResourceNotFoundError,
-    LLMServiceError,
     DocumentTooLargeError,
-    ServiceUnavailableError,
+    DomainException,
+    InsufficientPermissionsError,
+    InvalidCredentialsError,
+    LLMServiceError,
     ResourceBusyError,
+    ResourceNotFoundError,
+    ServiceUnavailableError,
+    UserAlreadyExistsError,
+    ValidationError,
 )
 
 

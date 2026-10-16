@@ -1,13 +1,15 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
-from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects.postgresql import UUID
+
 from app.core.config import settings
 from app.db.session import Base
+
 
 class DocumentStatus(Enum):
     PENDING = "pending"
@@ -31,7 +33,7 @@ class Document(Base):
     )
     error_message: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        sa.DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     content_type: so.Mapped[str | None] = so.mapped_column(sa.String(128), nullable=True)
     original_content: so.Mapped[bytes | None] = so.mapped_column(sa.LargeBinary, nullable=True)
@@ -66,7 +68,7 @@ class DocumentChunk(Base):
     page_end: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     embedding: so.Mapped[list[float]] = so.mapped_column(Vector(settings.EMBEDDING_DIM))
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        sa.DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
     document: so.Mapped["Document"] = so.relationship("Document", back_populates="chunks")

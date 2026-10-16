@@ -23,7 +23,7 @@ async def embed(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list
     vectors = []
     for start in range(0, len(texts), settings.EMBEDDING_BATCH_SIZE):
         batch = texts[start:start + settings.EMBEDDING_BATCH_SIZE]
-        response = await provider_request(lambda: client.aio.models.embed_content(
+        response = await provider_request(lambda batch=batch: client.aio.models.embed_content(
             model=settings.EMBEDDING_MODEL, contents=batch,
             config={"task_type": task_type, "output_dimensionality": settings.EMBEDDING_DIM},
         ))

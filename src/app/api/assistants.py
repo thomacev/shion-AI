@@ -1,16 +1,16 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Request
 
-from app.core.dependencies import get_db, get_current_user
+from fastapi import APIRouter, Depends, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.dependencies import get_current_user, get_db
+from app.core.rate_limit import limiter
 from app.schemas.assistant_schema import (
     AssistantCreateSchema,
-    AssistantUpdateSchema,
     AssistantResponseSchema,
+    AssistantUpdateSchema,
 )
 from app.services import assistant_service
-from app.core.rate_limit import limiter
 
 router = APIRouter(prefix="/assistants", tags=["assistants"])
 

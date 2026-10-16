@@ -1,18 +1,27 @@
-from uuid import UUID
 import asyncio
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.config import settings
+from uuid import UUID
 
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.core.dependencies import get_current_user, get_db
 from app.core.exceptions import ResourceNotFoundError
 from app.core.logger import logger
-
-from app.core.dependencies import get_db, get_current_user
 from app.schemas.document_schema import DocumentResponseSchema
 from app.services import document_service
 from app.services.document_service import MAX_DOCUMENT_SIZE_BYTES
-
 from app.tasks.document_tasks import process_document_task
 
 router = APIRouter(prefix="/assistants/{assistant_id}/documents", tags=["documents"])
@@ -91,9 +100,10 @@ async def download_document_file(
 async def _dispatch_document(document_id: UUID) -> None:
     try:
         await asyncio.to_thread(process_document_task.delay, str(document_id))
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 -- Keep the persisted upload available for recovery on any publication failure.
         # The durable pending row is recovered by the periodic scheduler.
-        logger.warning("Document queued for recovery after dispatch failure", document_id=str(document_id))
+        logger.warning("Document queued for recovery after dispatch failure", document_id=str(document_id),
+                       error_type=type(exc).__name__)
 
 
 @router.post("/{document_id}/retry", status_code=202, response_model=DocumentResponseSchema)

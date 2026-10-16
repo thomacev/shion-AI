@@ -1,6 +1,6 @@
+from fastapi import Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from fastapi import Request
 
 from app.core.config import settings
 

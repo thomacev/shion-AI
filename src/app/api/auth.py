@@ -1,13 +1,14 @@
 # app/api/auth.py
-from fastapi import APIRouter, Depends, status, Body, Request, HTTPException, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.user_schema import UserRegisterSchema, UserResponseSchema
-from app.core.dependencies import get_db, get_current_user
-from app.services import auth_service
-from app.core.rate_limit import limiter
 from app.core.config import settings
+from app.core.dependencies import get_current_user, get_db
+from app.core.rate_limit import limiter
+from app.schemas.user_schema import UserRegisterSchema, UserResponseSchema
+from app.services import auth_service
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 

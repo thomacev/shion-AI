@@ -1,14 +1,14 @@
+import uuid
+from datetime import UTC, datetime
+from enum import Enum
+from typing import TYPE_CHECKING
+
 import sqlalchemy as sa
 import sqlalchemy.orm as so
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy import Enum as SqlEnum
-import uuid
-from enum import Enum
-from datetime import datetime, timezone
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+
 from app.db.session import Base
-
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.models.assistant import Assistant
@@ -31,7 +31,7 @@ class Conversation(Base):
     )
     title: so.Mapped[str | None] = so.mapped_column(sa.String(256), nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        sa.DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     use_rag: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
     generation_token: so.Mapped[uuid.UUID | None] = so.mapped_column(UUID(as_uuid=True), nullable=True)
@@ -65,7 +65,7 @@ class Message(Base):
 
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         index=True,
     )
 

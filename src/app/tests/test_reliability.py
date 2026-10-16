@@ -1,24 +1,24 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from uuid import uuid4
 from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
+from celery.contrib.testing.worker import start_worker
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
-from celery.contrib.testing.worker import start_worker
 
 from app.core.celery_app import celery_app
 from app.core.config import settings
 from app.core.exceptions import ResourceBusyError
-from app.models.user import User
 from app.models.assistant import Assistant
 from app.models.conversation import Conversation, Message
 from app.models.document import Document, DocumentChunk, DocumentStatus
-from app.services.document_service import run_document_processing
+from app.models.user import User
 from app.services.conversation_service import send_message
+from app.services.document_service import run_document_processing
 from app.tasks.document_tasks import process_document_task, recover_documents_task
 
 
@@ -94,7 +94,7 @@ async def test_expired_attempt_cannot_overwrite_recovered_document(committed_rec
             try:
                 await asyncio.wait_for(entered.wait(), 5)
                 await second.execute(update(Document).where(Document.id == ids.document).values(
-                    lease_expires_at=datetime.now(timezone.utc) - timedelta(seconds=1)))
+                    lease_expires_at=datetime.now(UTC) - timedelta(seconds=1)))
                 await second.commit()
                 await run_document_processing(ids.document, "notes.txt", b"recovered", second)
             finally:
@@ -141,18 +141,20 @@ async def test_real_worker_runs_sequential_tasks_and_recovery_dispatch(committed
     async def fake_embed(texts, **kwargs):
         return [[0.1] * settings.EMBEDDING_DIM for _ in texts]
     # A real consumer receives serialized broker messages. Each task calls asyncio.run.
-    with patch("app.services.document_service.embed", new=AsyncMock(side_effect=fake_embed)):
-        with start_worker(celery_app, pool="solo", concurrency=1, queues=[queue],
-                          perform_ping_check=False, shutdown_timeout=15):
-            for document_id in (ids.document, second_id):
-                process_document_task.apply_async(args=[str(document_id)], queue=queue)
-                for _ in range(100):
-                    async with ids.factory() as db:
-                        status = (await db.get(Document, document_id)).status
-                    if status == DocumentStatus.READY:
-                        break
-                    await asyncio.sleep(0.05)
-                assert status == DocumentStatus.READY
+    with (
+        patch("app.services.document_service.embed", new=AsyncMock(side_effect=fake_embed)),
+        start_worker(celery_app, pool="solo", concurrency=1, queues=[queue],
+                     perform_ping_check=False, shutdown_timeout=15),
+    ):
+        for document_id in (ids.document, second_id):
+            process_document_task.apply_async(args=[str(document_id)], queue=queue)
+            for _ in range(100):
+                async with ids.factory() as db:
+                    status = (await db.get(Document, document_id)).status
+                if status == DocumentStatus.READY:
+                    break
+                await asyncio.sleep(0.05)
+            assert status == DocumentStatus.READY
     with patch("app.tasks.document_tasks.process_document_task.apply_async") as publish:
         async with ids.factory() as db:
             await db.execute(update(Document).where(Document.id == ids.document).values(status=DocumentStatus.PENDING))

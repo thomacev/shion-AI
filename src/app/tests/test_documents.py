@@ -1,6 +1,8 @@
-from unittest.mock import patch
 import uuid
+from unittest.mock import patch
+
 from app.core.config import settings
+
 
 class TestUploadDocument:
     async def test_upload_dispatches_processing_task(self, client, auth_headers, test_assistant):

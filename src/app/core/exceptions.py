@@ -17,47 +17,39 @@ class DomainException(Exception):
 class AuthenticationError(DomainException):
     """Raised when authentication fails."""
 
-    pass
 
 
 class InvalidCredentialsError(AuthenticationError):
     """Raised when user credentials are invalid."""
 
-    pass
 
 
 class UserAlreadyExistsError(DomainException):
     """Raised when trying to register an existing user."""
 
-    pass
 
 
 class InsufficientPermissionsError(DomainException):
     """Raised when user lacks required permissions."""
 
-    pass
 
 
 # Resource exceptions
 class ResourceNotFoundError(DomainException):
     """Generic resource not found."""
 
-    pass
 
 
 class ValidationError(DomainException):
     """Raised when business validation fails."""
 
-    pass
 
 class LLMServiceError(DomainException):
     """Raised when there is an error interacting with the LLM service."""
 
-    pass
 
 class DocumentTooLargeError(DomainException):
     """Raised when a document exceeds the maximum allowed size."""
-    pass
 
 
 class ServiceUnavailableError(DomainException):

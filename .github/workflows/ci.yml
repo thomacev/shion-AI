@@ -20,7 +20,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U shion_test -d shion_test_db"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -96,7 +96,9 @@ jobs:
         run: alembic upgrade head
 
       - name: Static analysis
-        run: ruff check src/app
+        run: |
+          ruff --version
+          ruff check src/app
 
       - name: Run tests with coverage
         run: |

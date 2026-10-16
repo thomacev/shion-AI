@@ -1,24 +1,29 @@
-from uuid import UUID, uuid4
-from datetime import timedelta
 import asyncio
 import json
 import re
-from sqlalchemy import select, update, or_, func
+from datetime import timedelta
+from uuid import UUID, uuid4
+
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.conversation import Conversation, Message, MessageRole
-from app.models.document import DocumentChunk, Document
-from app.schemas.conversation_schema import ConversationCreateSchema, ConversationUpdateSchema
-from app.core.exceptions import ResourceNotFoundError, ResourceBusyError, LLMServiceError
 from app.core.config import settings
-
-from app.services.llm_service import chat
-from app.services.embedding_service import embed
-from app.services.document_service import search_relevant_chunks
-from app.services.assistant_service import _get_assistant_for_user
+from app.core.exceptions import (
+    LLMServiceError,
+    ResourceBusyError,
+    ResourceNotFoundError,
+)
 from app.core.logger import logger
-
-
+from app.models.conversation import Conversation, Message, MessageRole
+from app.models.document import Document, DocumentChunk
+from app.schemas.conversation_schema import (
+    ConversationCreateSchema,
+    ConversationUpdateSchema,
+)
+from app.services.assistant_service import _get_assistant_for_user
+from app.services.document_service import search_relevant_chunks
+from app.services.embedding_service import embed
+from app.services.llm_service import chat
 
 NO_EVIDENCE = "I couldn't find enough information in your documents to answer that question."
 
