@@ -1,10 +1,13 @@
-// src/api/auth.ts — sin cambios de firma, solo se simplifica login()
-import client from "./client";
-export const login = (email: string, password: string) => {
-  const formData = new URLSearchParams();
-  formData.append("username", email);
-  formData.append("password", password);
-  return client.post("/auth/login", formData, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  });
-};
+import client from './client'
+
+export async function login(email: string, password: string) {
+  await client.post('/auth/login', new URLSearchParams({ username: email, password }))
+}
+
+export async function register(full_name: string, email: string, password: string) {
+  await client.post('/auth/register', { full_name, email, password })
+}
+
+export async function logout() {
+  await client.post('/auth/logout')
+}

@@ -34,6 +34,9 @@ class Conversation(Base):
         sa.DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     use_rag: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
+    allow_general_knowledge: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, default=False, server_default=sa.false()
+    )
     generation_token: so.Mapped[uuid.UUID | None] = so.mapped_column(UUID(as_uuid=True), nullable=True)
     generation_expires_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
     assistant: so.Mapped["Assistant"] = so.relationship(
@@ -62,6 +65,8 @@ class Message(Base):
     # Guardás los tokens para poder calcular uso después
     tokens_used: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     sources: so.Mapped[list[dict]] = so.mapped_column(JSONB, default=list, server_default="[]")
+
+    answer_basis: so.Mapped[str | None] = so.mapped_column(sa.String(32), nullable=True)
 
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True),

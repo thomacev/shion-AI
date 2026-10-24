@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 from datetime import timedelta
 from uuid import UUID, uuid4
 
@@ -15,17 +14,23 @@ from app.core.exceptions import (
 )
 from app.core.logger import logger
 from app.models.conversation import Conversation, Message, MessageRole
-from app.models.document import Document, DocumentChunk
+from app.models.document import Document, DocumentChunk, DocumentStatus
 from app.schemas.conversation_schema import (
     ConversationCreateSchema,
     ConversationUpdateSchema,
+)
+from app.services.answer_grounding import (
+    GENERAL_RULES,
+    HYBRID_RULES,
+    NO_EVIDENCE,
+    HybridAnswer,
+    cited_source_ids,
+    format_hybrid_answer,
 )
 from app.services.assistant_service import _get_assistant_for_user
 from app.services.document_service import search_relevant_chunks
 from app.services.embedding_service import embed
 from app.services.llm_service import chat
-
-NO_EVIDENCE = "I couldn't find enough information in your documents to answer that question."
 
 
 def build_system_prompt(base_prompt: str, context_chunks: list[DocumentChunk]) -> str:
@@ -81,7 +86,8 @@ async def create_conversation(
     conversation = Conversation(
         assistant_id=assistant_id,
         title=data.title,
-        use_rag=data.use_rag
+        use_rag=data.use_rag,
+        allow_general_knowledge=data.allow_general_knowledge,
     )
     db.add(conversation)
     await db.commit()
@@ -130,6 +136,7 @@ async def send_message(assistant_id: UUID, conversation_id: UUID, user_id: UUID,
     assistant = await _get_assistant_for_user(assistant_id, user_id, db)
     conversation = await _get_conversation_for_assistant(conversation_id, assistant_id, db)
     base_prompt, use_rag = assistant.system_prompt, conversation.use_rag
+    allow_general = conversation.allow_general_knowledge
     token = uuid4()
     claim = await db.execute(update(Conversation).where(
         Conversation.id == conversation_id,
@@ -148,8 +155,13 @@ async def send_message(assistant_id: UUID, conversation_id: UUID, user_id: UUID,
             await db.commit()
             sources, context_chunks = [], []
             if use_rag:
-                [query] = await embed([content], task_type="RETRIEVAL_QUERY")
-                context_chunks = await search_relevant_chunks(assistant_id, query, db)
+                has_documents = await db.scalar(select(Document.id).where(
+                    Document.assistant_id == assistant_id, Document.status == DocumentStatus.READY,
+                ).limit(1))
+                await db.commit()
+                if has_documents:
+                    [query] = await embed([content], task_type="RETRIEVAL_QUERY")
+                    context_chunks = await search_relevant_chunks(assistant_id, query, db)
                 source_texts = []
                 for index, chunk in enumerate(context_chunks, 1):
                     document = await db.get(Document, chunk.document_id)
@@ -164,20 +176,32 @@ async def send_message(assistant_id: UUID, conversation_id: UUID, user_id: UUID,
                 current = json.dumps({"question": content, "sources": source_texts}, ensure_ascii=False)
             else:
                 current = content
-            if use_rag and not sources:
+            answer_basis = "insufficient_evidence"
+            if use_rag and allow_general:
+                prompt = base_prompt + HYBRID_RULES
+                history = _trim_history(history, prompt, current)
+                response = await chat(system_prompt=prompt,
+                    messages=[*history, {"role": "user", "content": current}],
+                    response_schema=HybridAnswer.model_json_schema())
+                text, sources, answer_basis = format_hybrid_answer(response["content"], sources)
+                response["content"] = text
+            elif use_rag and not sources:
                 response = {"content": NO_EVIDENCE, "tokens_output": 0, "model": None}
             else:
-                prompt = build_system_prompt(base_prompt, context_chunks)
+                prompt = build_system_prompt(base_prompt, context_chunks) if use_rag else base_prompt + GENERAL_RULES
                 history = _trim_history(history, prompt, current)
                 response = await chat(system_prompt=prompt, messages=[*history, {"role": "user", "content": current}])
+                answer_basis = "general_knowledge"
                 if use_rag:
-                    cited = set(re.findall(r"\[(S[0-9]+)\]", response["content"]))
+                    cited = cited_source_ids(response["content"])
                     allowed = {source["source_id"] for source in sources}
                     if not cited or not cited <= allowed:
                         response["content"] = NO_EVIDENCE
                         sources = []
+                        answer_basis = "insufficient_evidence"
                     else:
                         sources = [source for source in sources if source["source_id"] in cited]
+                        answer_basis = "documents"
             owns_claim = await db.scalar(select(Conversation.id).where(
                 Conversation.id == conversation_id, Conversation.generation_token == token,
                 Conversation.generation_expires_at > func.now()).with_for_update())
@@ -186,7 +210,8 @@ async def send_message(assistant_id: UUID, conversation_id: UUID, user_id: UUID,
             await _get_assistant_for_user(assistant_id, user_id, db)
             user_message = Message(conversation_id=conversation_id, role=MessageRole.USER, content=content)
             assistant_message = Message(conversation_id=conversation_id, role=MessageRole.ASSISTANT,
-                content=response["content"], tokens_used=response["tokens_output"], sources=sources)
+                content=response["content"], tokens_used=response["tokens_output"], sources=sources,
+                answer_basis=answer_basis)
             db.add_all([user_message, assistant_message])
             await db.execute(update(Conversation).where(Conversation.id == conversation_id,
                 Conversation.generation_token == token).values(generation_token=None, generation_expires_at=None)

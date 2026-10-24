@@ -102,3 +102,6 @@ Thumbs.db
 *.pid
 *.seed
 *.bak
+# Browser validation artifacts
+playwright-report/
+test-results/

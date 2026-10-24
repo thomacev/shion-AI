@@ -14,7 +14,8 @@ def _token_count(metadata, field):
     return value if isinstance(value, int) and value >= 0 else None
 
 
-async def chat(system_prompt: str, messages: list[dict], model: str | None = None) -> dict:
+async def chat(system_prompt: str, messages: list[dict], model: str | None = None,
+               response_schema: dict | None = None) -> dict:
     client = get_gemini_client()
     model_to_use = model or settings.MODEL_NAME
     contents = _to_gemini_contents(messages)
@@ -28,10 +29,13 @@ async def chat(system_prompt: str, messages: list[dict], model: str | None = Non
         raise LLMServiceError("Model did not return a prompt token count")
     if total + 256 > settings.MAX_PROMPT_TOKENS:
         raise ValidationError("Conversation exceeds the prompt token budget; start a new conversation")
+    config = {"system_instruction": system_prompt, "max_output_tokens": settings.LLM_MAX_TOKENS,
+              "temperature": settings.LLM_TEMPERATURE}
+    if response_schema is not None:
+        config.update(response_mime_type="application/json", response_json_schema=response_schema)
     response = await provider_request(lambda: client.aio.models.generate_content(
         model=model_to_use, contents=contents,
-        config={"system_instruction": system_prompt, "max_output_tokens": settings.LLM_MAX_TOKENS,
-                "temperature": settings.LLM_TEMPERATURE},
+        config=config,
     ))
     content = getattr(response, "text", None)
     if not isinstance(content, str) or not content.strip():

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -12,6 +13,7 @@ from app.models.conversation import MessageRole
 class ConversationCreateSchema(BaseModel):
     title: str | None = None
     use_rag: bool = True
+    allow_general_knowledge: bool = False
 
     @field_validator("title")
     @classmethod
@@ -28,12 +30,13 @@ class ConversationCreateSchema(BaseModel):
 
 class ConversationUpdateSchema(BaseModel):
     use_rag: bool | None = None
+    allow_general_knowledge: bool | None = None
 
-    @field_validator("use_rag")
+    @field_validator("use_rag", "allow_general_knowledge")
     @classmethod
     def reject_null_rag(cls, value):
         if value is None:
-            raise ValueError("use_rag must be true or false")
+            raise ValueError("Chat mode flags must be true or false")
         return value
 
 class ConversationResponseSchema(BaseModel):
@@ -41,6 +44,7 @@ class ConversationResponseSchema(BaseModel):
     assistant_id: UUID
     title: str | None
     use_rag: bool
+    allow_general_knowledge: bool
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,6 +80,7 @@ class MessageResponseSchema(BaseModel):
     content: str
     tokens_used: int | None
     sources: list[SourceSchema] = Field(default_factory=list)
+    answer_basis: Literal["documents", "general_knowledge", "mixed", "insufficient_evidence"] | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

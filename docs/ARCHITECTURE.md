@@ -16,7 +16,7 @@ development commands are in [TESTING.md](TESTING.md).
 | `src/app/core/` | Settings, JWT/password handling, Redis, Gemini client, Celery setup, rate limiting, logging |
 | `src/app/tasks/document_tasks.py` | Celery wrapper around document processing and failure status updates |
 | `alembic/` | Database migrations; `env.py` imports model metadata |
-| `frontend/` | Vite React starter and an Axios auth client |
+| `frontend/` | React/TypeScript workspace, Tailwind/CSS styling, Axios API client, Playwright browser tests |
 
 `main.py` starts Uvicorn with reload for development. Docker's entrypoint waits
 for PostgreSQL at host `db`, applies migrations, and starts four Uvicorn workers
@@ -96,25 +96,58 @@ while the database engine and Gemini client are process globals.
 
 ## Chat and retrieval
 
-1. Check assistant ownership and conversation membership; add and flush the user
-   message within the request's database session.
-2. Load up to 20 previous messages and append the current message.
-3. If `use_rag` is true, embed the current message with `RETRIEVAL_QUERY`. Search
-   chunks belonging to this assistant's `READY` documents by cosine distance;
-   take up to four candidates and retain those within `RAG_MAX_DISTANCE`.
-4. Append retrieved text to the assistant system prompt. With no matches, or
-   with RAG disabled, use the base prompt. There is no forced abstention or
-   source/page citation response field.
-5. `llm_service.chat` converts assistant roles to Gemini's `model` role, calls
-   generation (up to two attempts), and returns text, token counts, and model.
-6. Save the assistant message and commit both messages. The session dependency
-   rolls back on exceptions. The transaction spans the external model calls.
+1. Check assistant ownership and conversation membership, then acquire an expiring
+   generation claim. Load up to 20 previous messages, releasing the read transaction
+   before provider calls.
+2. With `use_rag=true`, check for this assistant's READY documents. If any exist,
+   embed the question with `RETRIEVAL_QUERY`, retrieve matching chunks, and build
+   a JSON user message containing the question and source IDs, text, file/page
+   metadata. With no READY documents, skip the embedding request.
+3. Select the conversation's answer policy:
+   - `use_rag=true`, `allow_general_knowledge=false`: documents only. No matches
+     produce the fixed insufficient-evidence response without generation. Generated
+     answers must cite supplied source IDs or are replaced with that response.
+   - `use_rag=true`, `allow_general_knowledge=true`: combined answers. Gemini returns
+     a structured object with separate `document_answer` and `general_answer`
+     strings. Either can be empty. General knowledge works with no documents or
+     no retrieval matches; provider/retrieval errors remain errors.
+   - `use_rag=false`: general knowledge, without document retrieval.
+4. `answer_grounding.py` validates combined output and document citation IDs,
+   rejects document citations in the general section, and builds labeled Markdown.
+   Invalid structured output returns a domain error, without saving the message
+   pair. The model never supplies the persisted answer-origin label.
+5. Save the user/assistant pair and release the claim. Each new assistant message
+   stores `answer_basis`: `documents`, `general_knowledge`, `mixed`, or
+   `insufficient_evidence`, plus cited sources. These describe the accepted answer
+   sections and supplied references, not an independent verification of every
+   claim's factual support. Source text and history remain untrusted model input.
+
+No web-search tool is configured. General knowledge is explicitly labeled as
+having no web search; it can be outdated. Structured output uses the SDK's
+`response_mime_type` and `response_json_schema` configuration; see Google's
+[structured-output documentation](https://ai.google.dev/gemini-api/docs/generate-content/structured-output?hl=en).
+
+Migration `d3e5f708192a` follows `ef4d56b1d7f0`. It adds the non-null conversation
+flag with default false and nullable message provenance. Existing conversations
+retain their previous behavior; old messages have unknown provenance rather than
+being relabeled from the conversation's current mode. Downgrade removes these
+fields and their saved settings/labels, but keeps message text and source lists.
 
 ## Frontend boundary
 
-`frontend/src/main.tsx` mounts `App.tsx`, which is still the Vite starter screen.
-The separate `src/api/` modules use `VITE_API_URL`, send cookies, and attempt a
-refresh/retry after HTTP 401. They are not connected to the starter UI, and there
-is no implemented login route despite the client's `/login` redirect.
-Axios is declared in the root npm manifest, not the frontend manifest. Styling
-is plain CSS; no Tailwind dependency or configuration is present.
+`App.tsx` owns authentication and assistant selection. `Workspace.tsx` owns document
+polling and conversation navigation; the chat and document panels call typed
+wrappers in `src/api/workspace.ts`. The Axios client uses HTTP-only cookies and a
+shared refresh promise for concurrent unauthorized requests.
+
+New UI conversations default to Documents + general knowledge. The Answer using
+selector also supports Documents only and General knowledge. Existing conversation
+changes are persisted by PATCH; failed changes keep the previous mode. Only
+Documents only blocks sending while documents are loading or none are ready.
+Answer labels come from persisted message metadata, not the selected mode. Source
+cards download authenticated originals. Markdown rendering excludes raw HTML and
+remote images.
+
+Vite proxies `/auth` and `/assistants` to the backend during development. Production
+requires its own reverse proxy or compatible API origin configuration. The UI uses
+teal `#35B8A4`, off-white `#F7F8F2`, and charcoal `#21332F`, without gradients.

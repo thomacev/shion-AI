@@ -82,3 +82,14 @@ def test_dimension_configuration_rejects_mismatch():
     from pydantic import ValidationError as SettingsError
     with pytest.raises(SettingsError):
         Settings(EMBEDDING_DIM=768)
+
+
+async def test_structured_answer_schema_is_passed_to_gemini():
+    from app.services.answer_grounding import HybridAnswer
+    schema = HybridAnswer.model_json_schema()
+    fake = client_with_response(SimpleNamespace(text='{"document_answer": "", "general_answer": "answer"}'))
+    with patch("app.services.llm_service.get_gemini_client", return_value=fake):
+        await chat("instructions", [{"role": "user", "content": "question"}], response_schema=schema)
+    config = fake.aio.models.generate_content.call_args.kwargs["config"]
+    assert config["response_mime_type"] == "application/json"
+    assert config["response_json_schema"] == schema

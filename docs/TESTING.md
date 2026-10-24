@@ -37,7 +37,7 @@ test fixtures read the latter. CI sets `EMBEDDING_DIM=1536`,
 | Auth behavior | `pytest src/app/tests/test_auth.py` |
 | Assistant behavior and ownership | `pytest src/app/tests/test_assistants.py` |
 | Document API and processing | `pytest src/app/tests/test_documents.py src/app/tests/test_document_tasks.py` |
-| Conversations and RAG | `pytest src/app/tests/test_conversations.py` |
+| Conversations and RAG | `pytest src/app/tests/test_conversations.py src/app/tests/test_answer_modes.py` |
 | Full CI test/coverage check | `pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=70` |
 | Optional static analysis with the declared Ruff dependency | `ruff check src/app` |
 | Migration revision graph without a DB connection | `alembic heads` and `alembic history` |
@@ -50,7 +50,7 @@ selected from a single file. Collection does not establish database connectivity
 or prove test behavior. Imports may create local logs.
 
 CI runs migrations, the coverage check (minimum 70%), and then the Docker build.
-Ruff is available but is not a CI gate; there is no configured backend formatter,
+Ruff is also a CI gate; there is no configured backend formatter,
 type checker, or load-test scenario despite Locust being a dependency.
 
 ## Existing test conventions and gaps
@@ -71,11 +71,9 @@ type checker, or load-test scenario despite Locust being a dependency.
 - No Celery worker is required by the suite: `test_document_tasks.py` calls the
   processing service directly, so it does not exercise task delivery, actual
   retry scheduling, or the worker's event-loop lifecycle.
-- Provider calls are mocked in most relevant tests, but
-  `test_llm_failure_rolls_back_and_returns_502` mocks chat without mocking query
-  embedding. It can attempt a real embedding request and return 502 before
-  reaching its intended chat failure. Use a fake key for routine validation;
-  do not describe the suite as entirely offline.
+- The autouse provider guard blocks unmocked Gemini generation, embeddings and
+  token counting. Patch the specific adapter/service the path reaches so tests
+  cannot accidentally depend on live model calls.
 - Fixtures use ORM `create_all`, not migrations. A passing test alone does not
   verify migration-specific indexes or schema agreement. Migration validation
   needs the separate upgrade step against a disposable database.
@@ -87,8 +85,9 @@ for ingestion changes, check chunk contents/counts as well as status.
 ## Frontend commands
 
 There are separate root and frontend npm manifests/lockfiles. Run `npm ci` at
-the root for Axios and `npm --prefix frontend ci` for the frontend packages when
-dependencies need installation; this reflects the current split manifests.
+the root for the separate root dependency and `npm --prefix frontend ci` for
+frontend development. Axios is now declared in the frontend manifest too; the
+frontend does not require installing the root npm package.
 
 | Purpose | Command from repository root |
 | --- | --- |
@@ -96,7 +95,27 @@ dependencies need installation; this reflects the current split manifests.
 | TypeScript build and Vite bundle | `npm --prefix frontend run build` |
 | Development server | `npm --prefix frontend run dev` |
 | Preview the built frontend | `npm --prefix frontend run preview` |
+| Install Chromium for browser tests | `npx --prefix frontend playwright install chromium` |
+| Browser flow tests | `npm --prefix frontend run test:e2e` |
 
-The frontend declares no `test` script, test framework, or end-to-end suite.
-Build includes `tsc -b`; there is no separate `typecheck` script. GitHub Actions
-currently validates only the backend and its Docker image.
+Playwright starts a Vite server at `127.0.0.1:4173`; keep that port free. The browser
+suite mocks HTTP responses and does not prove real API/worker/Gemini integration.
+It covers authentication, document actions, chat history, failures, session refresh,
+mobile navigation, answer-mode persistence, source labels and Markdown rendering.
+Generated screenshots/traces in `frontend/test-results` are ignored by Git and
+ESLint. Build includes `tsc -b`; there is no separate `typecheck` script. GitHub
+Actions currently validates only the backend and its Docker image.
+
+## Answer-mode validation
+
+`test_answer_modes.py` uses the standard disposable database/Redis fixtures and
+mocks provider calls. It checks document-only, general and mixed answer provenance,
+no-document/no-match behavior, mode changes, invalid structured output/citations,
+rollback/claim release and ownership. `test_providers.py` verifies structured-output
+configuration at the Gemini adapter boundary.
+
+For migration `d3e5f708192a`, separately verify a fresh `alembic upgrade head` and
+an upgrade from `ef4d56b1d7f0` with synthetic conversations/messages. Existing
+conversations must get `allow_general_knowledge=false`; historical messages must
+keep their content with null `answer_basis`. Never use the application's working
+database for fixture teardown or migration rollback tests.

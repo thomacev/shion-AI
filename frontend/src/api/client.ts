@@ -1,46 +1,41 @@
-// src/api/client.ts
-import axios from "axios";
+import axios, { type InternalAxiosRequestConfig } from 'axios'
 
-const client = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true,  // el navegador manda las cookies httpOnly en cada request — sin esto, no viajan
-});
+export const SESSION_EXPIRED = 'shion:session-expired'
+const baseURL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+const client = axios.create({ baseURL, withCredentials: true, timeout: 30_000 })
+const authClient = axios.create({ baseURL, withCredentials: true, timeout: 15_000 })
+let refreshPromise: Promise<unknown> | null = null
 
-// Ya no hace falta interceptor de request inyectando el token —
-// el navegador lo hace solo, porque es una cookie.
-
-let isRefreshing = false;
-let refreshQueue: (() => void)[] = [];
-
-client.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          refreshQueue.push(() => resolve(client(originalRequest)));
-        });
+// All callers await the same refresh, including rejection. No stranded queue.
+client.interceptors.response.use(response => response, async (error: unknown) => {
+  if (!axios.isAxiosError(error)) throw error
+  const request = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined
+  if (error.response?.status !== 401 || !request || request._retry ||
+      /^\/auth\/(login|register|refresh)$/.test(request.url ?? '')) throw error
+  request._retry = true
+  if (!refreshPromise) {
+    refreshPromise = authClient.post('/auth/refresh', {}).catch((refreshError: unknown) => {
+      if (axios.isAxiosError(refreshError) && [401, 403].includes(refreshError.response?.status ?? 0)) {
+        window.dispatchEvent(new Event(SESSION_EXPIRED))
       }
-
-      isRefreshing = true;
-      try {
-        // Sin body — el refresh_token viaja solo, como cookie httpOnly
-        await axios.post(`${import.meta.env.VITE_API_URL}/auth/refresh`, {}, { withCredentials: true });
-        refreshQueue.forEach((cb) => cb());
-        refreshQueue = [];
-        return client(originalRequest);
-      } catch {
-        window.location.href = "/login";
-        return Promise.reject(error);
-      } finally {
-        isRefreshing = false;
-      }
-    }
-    return Promise.reject(error);
+      throw refreshError
+    }).finally(() => { refreshPromise = null })
   }
-);
+  await refreshPromise
+  return client(request)
+})
 
-export default client;
+export function errorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    if (error.code === 'ECONNABORTED') return 'This is taking longer than expected. Check the result before trying again.'
+    if (!error.response) return 'We couldn’t reach the server. Check your connection and try again.'
+    const detail = error.response.data?.detail ?? error.response.data?.message
+    if (typeof detail === 'string') return detail
+    if (Array.isArray(detail)) return detail.map((item: { msg?: string }) => item.msg).filter(Boolean).join(' ')
+    if (error.response.status === 429) return 'Too many requests. Please wait a little before trying again.'
+    return `The request couldn’t be completed (${error.response.status}). Please try again.`
+  }
+  return error instanceof Error ? error.message : 'Something went wrong. Please try again.'
+}
+
+export default client
