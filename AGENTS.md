@@ -2,7 +2,8 @@
 
 Shion AI is a document-assisted chat application. The backend uses Python 3.12+,
 FastAPI, Pydantic, async SQLAlchemy/asyncpg, PostgreSQL with pgvector, Celery,
-Redis, and Google's `google-genai` SDK. The frontend is React/TypeScript with Vite.
+Redis, and Google's `google-genai` SDK. The frontend uses React/TypeScript, Vite,
+and Tailwind CSS.
 
 ## Navigation
 
@@ -28,11 +29,12 @@ Redis, and Google's `google-genai` SDK. The frontend is React/TypeScript with Vi
 - Match surrounding style. The repo mixes English/Spanish comments and has no
   configured Python formatter or backend type-check command.
 - Frontend scripts belong to `frontend/package.json`; root `package.json` only
-  declares Axios. Do not assume root npm scripts or a frontend test runner exist.
+  declares Axios. Frontend browser tests use Playwright; consult the testing doc
+  for commands and their mocked API boundary.
 
 ## Keep guidance accurate
 
 Use source, manifests, migrations, and CI as evidence when README claims differ.
-Some historical documents linked from README are absent. Put architecture changes
-in the architecture doc and validation changes in the testing doc rather than
+Put architecture changes in the architecture doc and validation changes in the
+testing doc rather than
 copying their details here. Keep local `.env` values out of committed guidance.

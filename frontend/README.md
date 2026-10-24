@@ -1,75 +1,41 @@
-# React + TypeScript + Vite
+# Shion AI frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React and TypeScript workspace built with Vite, Tailwind CSS, and Axios. It
+supports authentication, assistants, document uploads and processing status,
+saved conversations, answer-mode selection, and source downloads.
 
-Currently, two official plugins are available:
+Start with the [root README](../README.md#run-locally) to run both the API and the
+frontend. The backend runs in Docker; this frontend runs separately through Vite.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Code map
 
-## React Compiler
+| File or directory | Responsibility |
+| --- | --- |
+| `src/main.tsx` | Mount React and load shared styles |
+| `src/App.tsx` | Session bootstrap, assistant selection, onboarding |
+| `src/components/AuthScreen.tsx` | Sign-in and registration forms |
+| `src/components/CreateAssistant.tsx` | Assistant creation dialog |
+| `src/components/Workspace.tsx` | Document polling, conversation navigation, responsive panels |
+| `src/components/ChatPanel.tsx` | Messages, answer-mode selection, source labels and citations |
+| `src/components/DocumentsPanel.tsx` | Upload, retry, download, and removal |
+| `src/api/` | Typed API calls, cookie authentication, shared refresh handling |
+| `src/index.css` | Tailwind import, theme, shared component and responsive styles |
+| `tests/workspace.spec.ts` | Playwright user-flow tests with simulated API responses |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Development notes
 
-## Expanding the ESLint configuration
+The [environment example](.env.example) documents optional API settings. Default
+development requests use Vite's same-origin proxy. Keep API keys and backend
+secrets out of frontend environment variables.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+The color palette is teal `#35B8A4`, off-white `#F7F8F2`, and charcoal `#21332F`,
+with mixtures/transparency and no gradients. Narrow layouts separate chat and
+documents into panels.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+The frontend uses HTTP-only authentication cookies and does not store tokens in
+localStorage. Source labels are read from saved message metadata; changing the
+current answer mode does not rewrite historical labels.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+See [architecture](../docs/ARCHITECTURE.md#frontend-boundary) for API behavior and
+[testing](../docs/TESTING.md#frontend-commands) for build, lint, and browser commands.
+The production bundle is written to `frontend/dist`.

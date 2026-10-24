@@ -11,23 +11,72 @@ all checks currently pass. CI is defined in
 - Python 3.12 is used by CI and Docker; the package declares Python >=3.12.
 - CI installs with `pip install -e ".[dev]"`. There is a `uv.lock`, but CI uses
   pip and Docker uses `uv pip install --system .`; neither installs from the lock.
-- Supply the required settings from `.env.example` in the environment or a local
-  `.env`. Pytest also loads `.env`. Even collection imports the app and settings.
-- Execution requires PostgreSQL with pgvector and a Redis instance. Start the
-  existing local services with `docker compose up -d db redis` when needed.
-  Compose creates only the configured primary PostgreSQL user/database; it does
-  not provision the separate test user/database shown in `.env.example`.
+- Configuration comes from environment variables and optionally the root `.env`.
+  Pytest also loads `.env`; explicit environment values in the recipe below take
+  precedence. Even collection imports settings.
 
-**Use disposable databases.** `setup_test_db` creates the vector extension and
-ORM tables, then drops all ORM tables at session teardown. Point
-`DATABASE_TEST_URL` at an existing disposable database using the
-`postgresql+asyncpg://` scheme, with permission to create the extension/tables.
-Keep test Redis separate from application Redis as auth tests can use it.
+## Isolated backend test setup
 
-For the CI-equivalent migration/test sequence, point both `DATABASE_URL` and
-`DATABASE_TEST_URL` at the same disposable database. Alembic reads the former;
-test fixtures read the latter. CI sets `EMBEDDING_DIM=1536`,
-`RATE_LIMIT_ENABLED=false`, and a fake `GEMINI_API_KEY`.
+Fixtures require `TEST_ALLOW_SCHEMA_RESET=1` and **drop ORM tables at session
+teardown**. Do not point them at the application's working database. Keep Redis
+separate too, since authentication tests write session state.
+
+With Python 3.12+ and Docker installed, prepare the Python tools from the root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+```
+
+Use fresh disposable containers on ports distinct from the application:
+
+```bash
+docker run --rm -d --name shion-test-db \
+  -e POSTGRES_USER=shion_test -e POSTGRES_PASSWORD=shion_test \
+  -e POSTGRES_DB=shion_test_db \
+  -p 127.0.0.1:15439:5432 pgvector/pgvector:pg15
+docker run --rm -d --name shion-test-redis \
+  -p 127.0.0.1:16389:6379 redis:7-alpine
+docker exec shion-test-db pg_isready -U shion_test -d shion_test_db
+```
+
+Wait until PostgreSQL reports that it accepts connections, then run this block
+in Bash. Parentheses keep the test settings out of the parent shell:
+
+```bash
+(
+  export DATABASE_URL=postgresql+asyncpg://shion_test:shion_test@127.0.0.1:15439/shion_test_db
+  export DATABASE_TEST_URL="$DATABASE_URL"
+  export REDIS_URL=redis://127.0.0.1:16389/0
+  export CELERY_BROKER_URL=redis://127.0.0.1:16389/1
+  export REDIS_PASSWORD=
+  export SECRET_KEY=isolated-tests-only-secret
+  export GEMINI_API_KEY=fake-test-key
+  export MODEL_NAME=gemini-3-flash-preview
+  export EMBEDDING_MODEL=gemini-embedding-001
+  export EMBEDDING_DIM=1536
+  export DEBUG=true
+  export RATE_LIMIT_ENABLED=false
+  export TEST_ALLOW_SCHEMA_RESET=1
+
+  alembic upgrade head &&
+  ruff check src/app &&
+  pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=70
+)
+```
+
+Use focused pytest commands from the table below inside the same block when
+appropriate. When done, stop only these disposable containers:
+
+```bash
+docker stop shion-test-db shion-test-redis
+```
+
+Start fresh containers before repeating the migration-plus-tests sequence:
+fixture teardown removes ORM tables but does not reset Alembic's revision table.
+The application's Compose stack does not provision the example's separate test
+database/user automatically.
 
 ## Backend commands
 
@@ -39,15 +88,16 @@ test fixtures read the latter. CI sets `EMBEDDING_DIM=1536`,
 | Document API and processing | `pytest src/app/tests/test_documents.py src/app/tests/test_document_tasks.py` |
 | Conversations and RAG | `pytest src/app/tests/test_conversations.py src/app/tests/test_answer_modes.py` |
 | Full CI test/coverage check | `pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=70` |
-| Optional static analysis with the declared Ruff dependency | `ruff check src/app` |
+| Static analysis (Ruff version pinned in pyproject.toml) | `ruff check src/app` |
 | Migration revision graph without a DB connection | `alembic heads` and `alembic history` |
 | Apply migrations to the configured disposable DB | `alembic upgrade head` |
 | CI image build | `docker build -t shion-ai:ci .` |
 
-Use `-k` or a pytest node ID to narrow an existing test target. All executed tests
-under the configured suite inherit the session-wide DB setup, including tests
-selected from a single file. Collection does not establish database connectivity
-or prove test behavior. Imports may create local logs.
+Use `-k` or a pytest node ID to narrow an existing test target. Tests using
+`db_session` or API fixtures inherit the session-wide schema setup, even when
+selected from a single file. Pure helper/provider tests can avoid DB fixtures, but
+still import application settings. Collection does not establish database
+connectivity or prove test behavior. Imports may create local logs.
 
 CI runs migrations, the coverage check (minimum 70%), and then the Docker build.
 Ruff is also a CI gate; there is no configured backend formatter,
@@ -66,10 +116,10 @@ type checker, or load-test scenario despite Locust being a dependency.
 - Tests use `unittest.mock.patch` and `AsyncMock` at the service's lookup site,
   such as `app.services.conversation_service.chat` and
   `app.services.document_service.embed`. Upload tests patch task `.delay`.
-- Embedding mocks currently use 1,536 dimensions. The processing success test
-  checks status without checking that every chunk was persisted.
-- No Celery worker is required by the suite: `test_document_tasks.py` calls the
-  processing service directly, so it does not exercise task delivery, actual
+- Embedding mocks use 1,536 dimensions. Processing tests assert saved chunk
+  contents/order, idempotence, vector validation, status and recovery behavior.
+- No Celery worker is required by the suite: the ingestion tests call the
+  processing service directly, so these tests do not exercise task delivery, actual
   retry scheduling, or the worker's event-loop lifecycle.
 - The autouse provider guard blocks unmocked Gemini generation, embeddings and
   token counting. Patch the specific adapter/service the path reaches so tests
